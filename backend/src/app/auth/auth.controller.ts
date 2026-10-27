@@ -20,7 +20,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * Đăng ký tài khoản.
+   * Đăng ký tài khoản khách hàng (Client).
    */
   @Post('sign-up')
   @SkipAuth()
@@ -29,21 +29,7 @@ export class AuthController {
   }
 
   /**
-   * Đăng ký tài khoản vendor.
-   */
-  @Post('sign-up/vendor')
-  @SkipAuth()
-  async signUpVendor(@Body() signUpDto: SignUpDto) {
-    const user = await this.authService.signUpVendor(signUpDto);
-
-    return {
-      message: 'Đăng ký gian hàng thành công',
-      user,
-    };
-  }
-
-  /**
-   * Đăng nhập và lưu token vào cookie.
+   * Đăng nhập (Admin hoặc Client) và lưu token vào cookie.
    */
   @Post('sign-in')
   @SkipAuth()
@@ -52,7 +38,6 @@ export class AuthController {
   })
   async signIn(
     @Body() signInDto: SignInDto,
-
     @Req() request: Request,
     @Res({ passthrough: true })
     response: Response,
@@ -66,13 +51,11 @@ export class AuthController {
 
     response.cookie(accessKey, result.data.accessToken, {
       ...COOKIE_CONFIG_DEFAULT,
-
       maxAge: ms(CookiesToken.ACCESS_TOKEN_EXPIRE_IN),
     });
 
     response.cookie(refreshKey, result.data.refreshToken, {
       ...COOKIE_CONFIG_DEFAULT,
-
       maxAge: ms(CookiesToken.REFRESH_TOKEN_EXPIRE_IN),
     });
 
@@ -100,13 +83,11 @@ export class AuthController {
 
     response.cookie(accessKey, result.data.accessToken, {
       ...COOKIE_CONFIG_DEFAULT,
-
       maxAge: ms(CookiesToken.ACCESS_TOKEN_EXPIRE_IN),
     });
 
     response.cookie(refreshKey, result.data.refreshToken, {
       ...COOKIE_CONFIG_DEFAULT,
-
       maxAge: ms(CookiesToken.REFRESH_TOKEN_EXPIRE_IN),
     });
 

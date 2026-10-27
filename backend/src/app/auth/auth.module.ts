@@ -6,7 +6,6 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AdminModule } from '../admins/admins.module';
 import { ClientModule } from '../clients/clients.module';
-import { VendorModule } from '../vendors/vendors.module';
 import { StringUtilService } from '../../common/utils/string-util/string-util.service';
 import { JWTEnvs } from './consts/jwt.const';
 
@@ -14,7 +13,6 @@ import { JWTEnvs } from './consts/jwt.const';
   imports: [
     AdminModule,
     ClientModule,
-    VendorModule,
 
     JwtModule.registerAsync({
       inject: [ConfigService],

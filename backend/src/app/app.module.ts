@@ -3,7 +3,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AdminModule } from './admins/admins.module';
 import { ClientModule } from './clients/clients.module';
-import { VendorModule } from './vendors/vendors.module';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { LoggingInterceptor } from 'src/logger/logging.interceptor';
 import { CatchEverythingFilter } from 'src/catch-everything/carch-everything.filter';
@@ -36,14 +35,13 @@ import { UsersModule } from './users/users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // cho phép sử dụng config service
-      expandVariables: true, // cho phép tái sử dụng các biến trong env
+      isGlobal: true,
+      expandVariables: true,
       validate: validate,
     }),
     PrismaModule,
     AdminModule,
     ClientModule,
-    VendorModule,
     UsersModule,
     ApiUtilModule,
     AuthModule,

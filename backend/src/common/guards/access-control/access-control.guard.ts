@@ -14,15 +14,9 @@ import { TokenPayload } from '../../../app/auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import { Actions, ROLE_ACTION } from './access-control.const';
-import { ROLES_KEY } from './roles.decorator';
+import { ROLES_KEY, UserRole } from './roles.decorator';
 import { RequestMethod } from '../../utils/api-util/api-util.const';
-import { UserRole } from './roles.decorator';
-import { assertVendorApproved } from '../../utils/vendor-approval/vendor-approval.util';
 
-/**
- * Dùng TokenPayload (đầy đủ trường từ JWT) thay vì type cục bộ
- * để đảm bảo kiểu dữ liệu `request.user` đồng bộ với AuthGuard.
- */
 type AuthenticatedUser = TokenPayload;
 
 @Injectable()
@@ -36,9 +30,10 @@ export class AccessControlGuard implements CanActivate {
     const select = { status: true, deletedAt: true };
     let user: any = await this.prismaService.extended.admin.findUnique({ where: { id: userID }, select });
     let role: UserRole = 'admin';
-    if (!user) { user = await this.prismaService.extended.client.findUnique({ where: { id: userID }, select }); role = 'client'; }
-    if (!user) { user = await this.prismaService.extended.vendor.findUnique({ where: { id: userID }, select: { ...select, approvalStatus: true } }); role = 'vendor'; }
-    if (!user) { user = await this.prismaService.extended.employee.findUnique({ where: { id: userID }, select }); role = 'employee'; }
+    if (!user) {
+      user = await this.prismaService.extended.client.findUnique({ where: { id: userID }, select });
+      role = 'client';
+    }
     return { user, role };
   }
 
@@ -51,8 +46,6 @@ export class AccessControlGuard implements CanActivate {
     if (!user || user.status !== 'active' || user.deletedAt) {
       return false;
     }
-
-    if (role === 'vendor') assertVendorApproved(user.approvalStatus);
 
     const allowedActions = ROLE_ACTION[role] ?? [];
 
@@ -103,9 +96,6 @@ export class AccessControlGuard implements CanActivate {
       throw new UnauthorizedException('Bạn chưa đăng nhập');
     }
 
-    /*
-     * Nếu API có @Roles() thì kiểm tra role cụ thể.
-     */
     const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
@@ -129,14 +119,10 @@ export class AccessControlGuard implements CanActivate {
           'Bạn không có quyền thực hiện chức năng này',
         );
       }
-      if (role === 'vendor') assertVendorApproved(currentUser.approvalStatus);
 
       return true;
     }
 
-    /*
-     * Nếu API không có @Roles() thì kiểm tra ROLE_ACTION.
-     */
     const action = this.getAction(request.method as RequestMethod);
 
     const canAccess = await this.canAccessResources(
