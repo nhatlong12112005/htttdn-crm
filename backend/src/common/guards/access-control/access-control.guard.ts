@@ -14,7 +14,8 @@ import { TokenPayload } from '../../../app/auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import { Actions, ROLE_ACTION } from './access-control.const';
-import { ROLES_KEY, UserRole } from './roles.decorator';
+import { ADMIN_ROLES_KEY, ROLES_KEY, UserRole } from './roles.decorator';
+import { AdminRoleCode, resolveAdminRole } from './admin-role';
 import { RequestMethod } from '../../utils/api-util/api-util.const';
 
 type AuthenticatedUser = TokenPayload;
@@ -27,11 +28,16 @@ export class AccessControlGuard implements CanActivate {
   ) {}
 
   private async resolveUser(userID: string): Promise<{ user: any; role: UserRole }> {
-    const select = { status: true, deletedAt: true };
-    let user: any = await this.prismaService.extended.admin.findUnique({ where: { id: userID }, select });
+    let user: any = await this.prismaService.extended.admin.findUnique({
+      where: { id: userID },
+      select: { status: true, deletedAt: true, roleCode: true, department: true },
+    });
     let role: UserRole = 'admin';
     if (!user) {
-      user = await this.prismaService.extended.client.findUnique({ where: { id: userID }, select });
+      user = await this.prismaService.extended.client.findUnique({
+        where: { id: userID },
+        select: { status: true, deletedAt: true },
+      });
       role = 'client';
     }
     return { user, role };
@@ -100,6 +106,10 @@ export class AccessControlGuard implements CanActivate {
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const allowedAdminRoles = this.reflector.getAllAndOverride<AdminRoleCode[]>(
+      ADMIN_ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    ) ?? ['CRM_MANAGER'];
 
     if (requiredRoles?.length) {
       const { user: currentUser, role } = await this.resolveUser(authenticatedUser.userID);
@@ -120,7 +130,30 @@ export class AccessControlGuard implements CanActivate {
         );
       }
 
+      if (role === 'admin') {
+        const adminRole = resolveAdminRole(currentUser);
+        if (authenticatedUser.adminRole !== adminRole) {
+          throw new UnauthorizedException('Quyền tài khoản đã thay đổi, vui lòng đăng nhập lại');
+        }
+        if (!adminRole || !allowedAdminRoles.includes(adminRole)) {
+          throw new ForbiddenException('Bạn không có quyền truy cập phân hệ này');
+        }
+        (authenticatedUser as AuthenticatedUser & { adminRole: AdminRoleCode }).adminRole = adminRole;
+      }
+
       return true;
+    }
+
+    if (authenticatedUser.role === 'admin') {
+      const { user, role } = await this.resolveUser(authenticatedUser.userID);
+      const adminRole = role === 'admin' && user ? resolveAdminRole(user) : null;
+      if (authenticatedUser.adminRole !== adminRole) {
+        throw new UnauthorizedException('Quyền tài khoản đã thay đổi, vui lòng đăng nhập lại');
+      }
+      if (!adminRole || !allowedAdminRoles.includes(adminRole)) {
+        throw new ForbiddenException('Bạn không có quyền truy cập phân hệ này');
+      }
+      (authenticatedUser as AuthenticatedUser & { adminRole: AdminRoleCode }).adminRole = adminRole;
     }
 
     const action = this.getAction(request.method as RequestMethod);

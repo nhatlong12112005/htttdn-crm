@@ -132,7 +132,7 @@ model Admin {
   phone       String?    @db.VarChar(255)
   avatarUrl   String?    @db.VarChar(1000)
   department  String?    @db.VarChar(255)
-  roleCode    String     @default("SUPER_ADMIN") @db.VarChar(50)
+  roleCode    String     @default("CRM_MANAGER") @db.VarChar(50)
   permissions Json?
   status      UserStatus @default(active)
   createdAt   DateTime   @default(now())
@@ -202,6 +202,7 @@ model Survey {
   imageUrl     String?            @db.VarChar(1000)
   scope        SurveyScope        @default(platform)
   audienceType SurveyAudienceType
+  recipientIds String[]           @default([]) @db.Uuid
   triggerType  SurveyTriggerType  @default(manual)
   status       SurveyStatus       @default(draft)
   startDate    DateTime?

@@ -72,7 +72,7 @@ export class ProductColorController {
    * POST /api/productColors
    */
   @Post()
-  @Roles('vendor')
+  @Roles('admin')
   @UseInterceptors(ProductImagesInterceptor)
   createProductColor(
     @Body() dto: CreateProductColorDto,
@@ -122,7 +122,7 @@ export class ProductColorController {
    * PATCH /api/productColors/:id
    */
   @Patch(':id')
-  @Roles('vendor')
+  @Roles('admin')
   @UseInterceptors(ProductImagesInterceptor)
   updateProductColor(
     @Param('id', ParseUUIDPipe) id: string,
@@ -153,7 +153,7 @@ export class ProductColorController {
    * POST /api/productColors/:id/images
    */
   @Post(':id/images')
-  @Roles('vendor')
+  @Roles('admin')
   @UseInterceptors(ProductImagesInterceptor)
   addImages(
     @Param('id', ParseUUIDPipe) id: string,
@@ -177,7 +177,7 @@ export class ProductColorController {
    * PATCH /api/productColors/:id/restore
    */
   @Patch(':id/restore')
-  @Roles('vendor')
+  @Roles('admin')
   restoreProductColor(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserInfo,
@@ -194,7 +194,7 @@ export class ProductColorController {
    * DELETE /api/productColors/:id
    */
   @Delete(':id')
-  @Roles('vendor')
+  @Roles('admin')
   deleteProductColor(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserInfo,

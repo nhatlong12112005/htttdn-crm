@@ -11,7 +11,7 @@ const ProfileSchema = z.object({
 });
 
 export class UpdateAdminProfileDto extends createZodDto(
-  ProfileSchema.partial().strict(),
+  ProfileSchema.omit({ department: true }).partial().strict(),
 ) {}
 
 export class UpdateAdminDto extends createZodDto(

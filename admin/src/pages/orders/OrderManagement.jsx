@@ -5,12 +5,9 @@ import {
   Loader2, 
   ChevronLeft, 
   ChevronRight,
-  UserCheck,
-  Sparkles,
-  Clock,
+  CheckCircle2,
   Truck,
   Package,
-  AlertTriangle
 } from 'lucide-react';
 import { ordersApi } from '../../api';
 import { formatCurrency, formatDate } from '../../utils/formatHelpers';
@@ -22,9 +19,7 @@ export default function OrderManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [autoAssigningAll, setAutoAssigningAll] = useState(false);
   
-  // Server-side pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -66,10 +61,24 @@ export default function OrderManagement() {
     const styles = {
       completed: 'success',
       pending: 'warning',
+      confirmed: 'info',
+      processing: 'info',
       shipping: 'info',
       cancelled: 'error',
     };
     return styles[status] || 'default';
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = {
+      pending: 'Chờ xác nhận',
+      confirmed: 'Đã xác nhận',
+      processing: 'Đang đóng gói',
+      shipping: 'Đang vận chuyển',
+      completed: 'Hoàn tất',
+      cancelled: 'Đã hủy',
+    };
+    return labels[status] || status.toUpperCase();
   };
 
   const handleViewClick = (order, userName) => {
@@ -77,38 +86,13 @@ export default function OrderManagement() {
     setIsDetailModalOpen(true);
   };
 
-  const handleAutoAssignSingle = async (e, orderId) => {
-    e.stopPropagation();
-    try {
-      await ordersApi.autoAssignOrder(orderId);
-      await fetchOrders();
-    } catch (err) {
-      alert(`Lỗi tự động phân công: ${err.response?.data?.message || err.message}`);
-    }
-  };
-
   const handleStatusChange = async (orderId, newStatus, note) => {
     try {
       await ordersApi.updateOrderStatus(orderId, newStatus, note);
-      // Re-fetch orders to sync all relationships (statusHistory, payment, vendorOrders, etc.)
       await fetchOrders();
       setOrderToView(prev => (prev && prev.id === orderId ? { ...prev, status: newStatus } : prev));
     } catch (err) {
       alert(err.response?.data?.message || 'Cập nhật trạng thái đơn hàng thất bại');
-    }
-  };
-
-  const handleAutoAssignAll = async () => {
-    if (!confirm('Hệ thống sẽ tự động quét và phân công các đơn hàng / kiện hàng chưa có người phụ trách theo mức cân bằng tải. Tiếp tục?')) return;
-    try {
-      setAutoAssigningAll(true);
-      const res = await ordersApi.autoAssignAll();
-      alert(res.data?.message || 'Tự động phân công hoàn tất!');
-      await fetchOrders();
-    } catch (err) {
-      alert(`Lỗi tự động phân công: ${err.response?.data?.message || err.message}`);
-    } finally {
-      setAutoAssigningAll(false);
     }
   };
 
@@ -118,11 +102,6 @@ export default function OrderManagement() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Quản lý đơn hàng</h1>
           <p className="text-slate-500 dark:text-slate-400">{totalItems} đơn hàng trong hệ thống</p>
-        </div>
-
-        <div className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs font-medium">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Hệ thống tự động phân công nhân sự khi phát sinh đơn hàng</span>
         </div>
       </div>
 
@@ -144,9 +123,9 @@ export default function OrderManagement() {
           <Select 
             options={[
               { value: 'all', label: 'Tất cả trạng thái' },
-              { value: 'pending', label: 'Chờ xử lý (Pending)' },
+              { value: 'pending', label: 'Chờ xác nhận (Pending)' },
               { value: 'confirmed', label: 'Đã xác nhận (Confirmed)' },
-              { value: 'processing', label: 'Vendor đang xử lý (Processing)' },
+              { value: 'processing', label: 'Đang đóng gói (Processing)' },
               { value: 'shipping', label: 'Đang vận chuyển (Shipping)' },
               { value: 'completed', label: 'Hoàn tất (Completed)' },
               { value: 'cancelled', label: 'Đã hủy (Cancelled)' }
@@ -178,76 +157,20 @@ export default function OrderManagement() {
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Khách hàng</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Số SP</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tổng tiền</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Thanh toán</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Trạng thái</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Nhân viên phụ trách</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ngày tạo</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map(order => {
-                  const userName = order.client?.fullName || order.receiverName || order.user?.fullName || 'Khách hàng';
-                  const userEmail = order.client?.email || '';
+                  const userName = order.client?.fullName || order.receiverName || 'Khách hàng';
+                  const userEmail = order.client?.email || order.receiverPhone || '';
                   const itemsCount = order.details ? order.details.length : 0;
                   const displayOrderCode = order.orderCode ? `#${order.orderCode}` : `#${order.id.substring(0, 8)}...`;
-                  const historyList = order.statusHistory || [];
-                  const reversedHistory = [...historyList].reverse();
-                  
-                  const shippingEmp = order.shipments?.find(s => s.carrier)?.carrier || reversedHistory.find(h => 
-                    h.employee && (
-                      h.employee.department?.toLowerCase().includes('vận chuyển') ||
-                      h.employee.department?.toLowerCase().includes('giao nhận') ||
-                      h.note?.toLowerCase().includes('bưu tá')
-                    )
-                  )?.employee;
-                  
-                  const exceptionEmp = reversedHistory.find(h => 
-                    h.employee && (
-                      h.employee.department?.toLowerCase().includes('sự cố') ||
-                      h.employee.department?.toLowerCase().includes('ngoại lệ') ||
-                      h.note?.toLowerCase().includes('sự cố')
-                    )
-                  )?.employee;
-                  
-                  const handlingEmp = reversedHistory.find(h => 
-                    h.employee && (
-                      h.employee.department?.toLowerCase().includes('điều phối') ||
-                      h.employee.department?.toLowerCase().includes('vendor') ||
-                      h.note?.toLowerCase().includes('điều phối')
-                    )
-                  )?.employee;
-
-                  const anyHistoryEmp = reversedHistory.find(h => h.employee)?.employee;
-
-                  let displayEmp = null;
-                  let deptMeta = null;
-
-                  if (order.status === 'cancelled') {
-                    displayEmp = exceptionEmp || handlingEmp || shippingEmp || anyHistoryEmp;
-                    deptMeta = {
-                      icon: AlertTriangle,
-                      deptName: 'Sự cố & Ngoại lệ',
-                      textColor: 'text-amber-700 dark:text-amber-400',
-                      iconColor: 'text-amber-600',
-                    };
-                  } else if (order.status === 'shipping' || order.status === 'completed') {
-                    displayEmp = shippingEmp || handlingEmp || anyHistoryEmp;
-                    deptMeta = {
-                      icon: Truck,
-                      deptName: 'Vận chuyển & Giao nhận',
-                      textColor: 'text-blue-700 dark:text-blue-400',
-                      iconColor: 'text-blue-600',
-                    };
-                  } else {
-                    // pending, confirmed, processing
-                    displayEmp = handlingEmp || shippingEmp || anyHistoryEmp;
-                    deptMeta = {
-                      icon: Package,
-                      deptName: 'Điều phối & Vendor',
-                      textColor: 'text-indigo-700 dark:text-indigo-400',
-                      iconColor: 'text-indigo-600',
-                    };
-                  }
+                  const paymentMethod = (order.payment?.method || 'cod').toUpperCase();
+                  const paymentStatus = order.payment?.status || 'pending';
 
                   return (
                     <tr key={order.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
@@ -260,61 +183,59 @@ export default function OrderManagement() {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{itemsCount} SP</td>
                       <td className="px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100">{formatCurrency(order.totalAmount)}</td>
+                      <td className="px-4 py-3 text-xs">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{paymentMethod}</span>
+                        <span className="ml-1.5 text-slate-400">
+                          ({paymentStatus === 'paid' ? 'Đã TT' : paymentStatus === 'cancelled' ? 'Đã hủy' : 'Chờ TT'})
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <Badge variant={getStatusBadge(order.status)}>
-                          {order.status.toUpperCase()}
+                          {getStatusLabel(order.status)}
                         </Badge>
                       </td>
-
-                      {/* Assigned Employee Column */}
-                      <td className="px-4 py-3 text-xs">
-                        <div className="space-y-1">
-                          {displayEmp && (
-                            <div>
-                              <div className={`font-semibold ${deptMeta.textColor} flex items-center gap-1.5`}>
-                                <deptMeta.icon className={`w-3.5 h-3.5 ${deptMeta.iconColor} shrink-0`} />
-                                <span className="truncate max-w-[130px]">{displayEmp.fullName}</span>
-                              </div>
-                              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                                {displayEmp.employeeCode} • {deptMeta.deptName}
-                              </div>
-                            </div>
-                          )}
-
-                          {shippingEmp && displayEmp?.id !== shippingEmp.id && (
-                            <div className="pt-0.5 border-t border-slate-100 dark:border-slate-800">
-                              <div className="font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1.5 text-[11px]">
-                                <Truck className="w-3 h-3 text-blue-500 shrink-0" />
-                                <span className="truncate max-w-[130px]">Bưu tá: {shippingEmp.fullName}</span>
-                              </div>
-                              <div className="text-[10px] text-slate-400 font-mono">
-                                {shippingEmp.employeeCode} • Vận chuyển & Giao nhận
-                              </div>
-                            </div>
-                          )}
-
-                          {!displayEmp && !shippingEmp && (
-                            <button
-                              onClick={(e) => handleAutoAssignSingle(e, order.id)}
-                              className="text-[11px] text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 transition shadow-xs"
-                              title="Hệ thống tự động phân công nhân sự ngay"
-                            >
-                              <Sparkles className="w-3 h-3 text-blue-600 animate-spin" /> Tự động phân công
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
                       <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{formatDate(order.createdAt)}</td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {order.status === 'pending' && (
+                            <button
+                              onClick={() => handleStatusChange(order.id, 'confirmed', 'Xác nhận đơn hàng')}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 transition"
+                            >
+                              Duyệt đơn
+                            </button>
+                          )}
+                          {order.status === 'confirmed' && (
+                            <button
+                              onClick={() => handleStatusChange(order.id, 'processing', 'Đang đóng gói')}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:text-indigo-300 transition inline-flex items-center gap-1"
+                            >
+                              <Package className="w-3 h-3" /> Đóng gói
+                            </button>
+                          )}
+                          {order.status === 'processing' && (
+                            <button
+                              onClick={() => handleStatusChange(order.id, 'shipping', 'Bàn giao vận chuyển')}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 transition inline-flex items-center gap-1"
+                            >
+                              <Truck className="w-3 h-3" /> Giao hàng
+                            </button>
+                          )}
+                          {order.status === 'shipping' && (
+                            <button
+                              onClick={() => handleStatusChange(order.id, 'completed', 'Giao hàng thành công')}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 transition inline-flex items-center gap-1"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Hoàn tất
+                            </button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm" 
                             icon={Eye} 
                             className="text-slate-400 hover:text-blue-600" 
                             onClick={() => handleViewClick(order, userName)}
-                            title="Xem chi tiết & Điều phối đơn"
+                            title="Xem chi tiết & Xử lý đơn"
                           />
                         </div>
                       </td>
@@ -358,10 +279,6 @@ export default function OrderManagement() {
           onClose={() => setIsDetailModalOpen(false)}
           order={orderToView}
           onStatusChange={handleStatusChange}
-          onOrderUpdated={(updated) => {
-            setOrderToView(updated);
-            fetchOrders();
-          }}
         />
       )}
     </div>

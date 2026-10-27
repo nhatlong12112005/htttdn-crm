@@ -89,6 +89,6 @@ describe('Public catalog (HTTP integration)', () => {
   it('still protects catalog write operations', async () => {
     await request(server()).post('/api/products').send({}).expect(401);
     await request(server()).post('/api/categories').send({}).expect(401);
-    await request(server()).get('/api/products/vendor/mine').expect(401);
+    await request(server()).get('/api/products/admin/all').expect(401);
   });
 });

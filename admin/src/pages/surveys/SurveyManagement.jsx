@@ -59,6 +59,24 @@ export default function SurveyManagement() {
   // Customer Recipient Selection
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState([]);
+  const [recipientSurvey, setRecipientSurvey] = useState(null);
+  const [draftRecipientIds, setDraftRecipientIds] = useState([]);
+  const [recipientLoading, setRecipientLoading] = useState(false);
+  const [recipientSubmitting, setRecipientSubmitting] = useState(false);
+
+  const loadActiveCustomers = async () => {
+    const list = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const res = await usersApi.getUsers({ role: 'customer', status: 'active', page, itemPerPage: 100 });
+      const data = res?.data || {};
+      list.push(...(data.list || []));
+      totalPages = data.totalPages || 1;
+      page += 1;
+    } while (page <= totalPages);
+    return list;
+  };
 
   useEffect(() => {
     loadSurveys();
@@ -66,11 +84,8 @@ export default function SurveyManagement() {
 
   useEffect(() => {
     if (activeTab === 'create') {
-      usersApi
-        .getUsers({ role: 'customer', status: 'active', itemPerPage: 100 })
-        .then((res) => {
-          setCustomers(res?.data?.list || []);
-        })
+      loadActiveCustomers()
+        .then(setCustomers)
         .catch(() => {});
     }
   }, [activeTab]);
@@ -128,6 +143,45 @@ export default function SurveyManagement() {
       }
     } catch (err) {
       alert('Không thể cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const openRecipientSelection = async (survey) => {
+    setRecipientSurvey(survey);
+    setDraftRecipientIds(survey.recipientIds || []);
+    setRecipientLoading(true);
+    try {
+      const activeCustomers = await loadActiveCustomers();
+      setCustomers(activeCustomers);
+      const activeIds = new Set(activeCustomers.map((customer) => customer.id));
+      setDraftRecipientIds((ids) => ids.filter((id) => activeIds.has(id)));
+    } catch (err) {
+      alert('Không thể tải danh sách khách hàng: ' + (err.response?.data?.message || err.message));
+      setRecipientSurvey(null);
+    } finally {
+      setRecipientLoading(false);
+    }
+  };
+
+  const sendSelectedSurvey = async () => {
+    if (!draftRecipientIds.length) {
+      alert('Vui lòng chọn ít nhất một khách hàng nhận khảo sát');
+      return;
+    }
+    try {
+      setRecipientSubmitting(true);
+      await surveysApi.updateSurvey(recipientSurvey.id, {
+        triggerType: 'manual',
+        recipientIds: draftRecipientIds,
+      });
+      await surveysApi.changeStatus(recipientSurvey.id, 'active');
+      setRecipientSurvey(null);
+      setFeedbackMsg('Đã gửi khảo sát đến khách hàng được chọn.');
+      loadSurveys();
+    } catch (err) {
+      alert('Không thể gửi khảo sát: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setRecipientSubmitting(false);
     }
   };
 
@@ -217,6 +271,7 @@ export default function SurveyManagement() {
           imageUrl && imageUrl.trim().startsWith('http') ? imageUrl.trim() : undefined,
         scope: 'platform',
         audienceType,
+        recipientIds: audienceType === 'selected_users' ? selectedCustomerIds : [],
         triggerType,
         startDate: startDate ? new Date(startDate).toISOString() : undefined,
         endDate: endDate ? new Date(endDate).toISOString() : undefined,
@@ -236,11 +291,7 @@ export default function SurveyManagement() {
       const created = res?.data?.data || res?.data || res;
 
       if (activateImmediately && created?.id) {
-        await surveysApi.changeStatus(
-          created.id,
-          'active',
-          audienceType === 'selected_users' ? selectedCustomerIds : undefined
-        );
+        await surveysApi.changeStatus(created.id, 'active');
       }
 
       setFeedbackMsg(
@@ -438,7 +489,7 @@ export default function SurveyManagement() {
                           <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
                             <User className="w-3 h-3" />
                             {survey.audienceType === 'selected_users'
-                              ? 'Khách hàng được chọn'
+                              ? `Khách hàng được chọn (${survey.recipientIds?.length || 0})`
                               : 'Toàn bộ Khách hàng'}
                           </span>
                         </td>
@@ -490,7 +541,9 @@ export default function SurveyManagement() {
                             </button>
                             {survey.status === 'draft' && (
                               <button
-                                onClick={() => handleChangeStatus(survey.id, 'active')}
+                                onClick={() => survey.audienceType === 'selected_users'
+                                  ? openRecipientSelection(survey)
+                                  : handleChangeStatus(survey.id, 'active')}
                                 className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
                                 title="Kích hoạt và gửi thông báo tới khách hàng"
                               >
@@ -725,7 +778,10 @@ export default function SurveyManagement() {
                 </label>
                 <select
                   value={audienceType}
-                  onChange={(e) => setAudienceType(e.target.value)}
+                  onChange={(e) => {
+                    setAudienceType(e.target.value);
+                    if (e.target.value === 'selected_users') setTriggerType('manual');
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100"
                 >
                   <option value="all_users">Tất cả tài khoản khách hàng đang hoạt động</option>
@@ -789,8 +845,8 @@ export default function SurveyManagement() {
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100"
                 >
                   <option value="manual">Gửi ngay vào tài khoản khách hàng khi kích hoạt</option>
-                  <option value="after_order_completed">Tự động gửi khi đơn hàng hoàn thành</option>
-                  <option value="after_checkout">Tự động gửi sau khi khách đặt hàng</option>
+                  {audienceType !== 'selected_users' && <option value="after_order_completed">Tự động gửi khi đơn hàng hoàn thành</option>}
+                  {audienceType !== 'selected_users' && <option value="after_checkout">Tự động gửi sau khi khách đặt hàng</option>}
                 </select>
               </div>
 
@@ -1042,6 +1098,47 @@ export default function SurveyManagement() {
       )}
 
       {/* Preview Modal */}
+      {recipientSurvey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chọn khách hàng nhận khảo sát</h3>
+                <p className="text-sm text-slate-500 mt-1">{recipientSurvey.title}</p>
+              </div>
+              <button onClick={() => setRecipientSurvey(null)} disabled={recipientSubmitting} aria-label="Đóng" className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {recipientLoading ? <p className="text-sm text-slate-500">Đang tải khách hàng...</p> : (
+              <>
+                <p className="text-xs text-slate-500">{draftRecipientIds.length} khách hàng đã chọn</p>
+                <div className="max-h-72 overflow-y-auto space-y-1">
+                  {customers.map((customer) => (
+                    <label key={customer.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={draftRecipientIds.includes(customer.id)}
+                        onChange={() => setDraftRecipientIds((ids) => ids.includes(customer.id)
+                          ? ids.filter((id) => id !== customer.id)
+                          : [...ids, customer.id])}
+                      />
+                      <span className="text-sm text-slate-800 dark:text-slate-200">{customer.fullName} ({customer.email})</span>
+                    </label>
+                  ))}
+                  {customers.length === 0 && <p className="text-sm text-slate-500">Chưa có khách hàng đang hoạt động.</p>}
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRecipientSurvey(null)} disabled={recipientSubmitting} className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700">Hủy</button>
+              <button onClick={sendSelectedSurvey} disabled={recipientLoading || recipientSubmitting || !draftRecipientIds.length} className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white disabled:opacity-50">
+                {recipientSubmitting ? 'Đang gửi...' : 'Gửi khảo sát'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {previewSurvey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto">

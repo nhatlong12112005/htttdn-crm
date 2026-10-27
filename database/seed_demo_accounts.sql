@@ -2,6 +2,7 @@
 UPDATE "Admin"
 SET password = '$2b$10$n6LJ8yiwoKIrrfCiCc8y0OEFwC5BzKAeD6CYzngelKti.rFqkLYZ.',
     department = 'SUPER_ADMIN',
+    "roleCode" = 'SUPER_ADMIN',
     status = 'active',
     "deletedAt" = NULL
 WHERE email = 'admin1@miva.vn';
@@ -9,17 +10,19 @@ WHERE email = 'admin1@miva.vn';
 UPDATE "Admin"
 SET password = '$2b$10$n6LJ8yiwoKIrrfCiCc8y0OEFwC5BzKAeD6CYzngelKti.rFqkLYZ.',
     department = 'CRM_MANAGER',
+    "roleCode" = 'CRM_MANAGER',
     status = 'active',
     "deletedAt" = NULL
 WHERE email = 'admin2@miva.vn';
 
-INSERT INTO "Admin" (id, "fullName", email, password, phone, department, status, "createdAt", "updatedAt")
+INSERT INTO "Admin" (id, "fullName", email, password, phone, department, "roleCode", status, "createdAt", "updatedAt")
 VALUES
-  ('11111111-1111-4111-8111-111111111111', 'Quản trị Hệ thống (Admin Server)', 'admin@miva.vn', '$2b$10$n6LJ8yiwoKIrrfCiCc8y0OEFwC5BzKAeD6CYzngelKti.rFqkLYZ.', '0901000001', 'SUPER_ADMIN', 'active', NOW(), NOW()),
-  ('22222222-2222-4222-8222-222222222222', 'Người Quản lý CRM', 'crm@miva.vn', '$2b$10$n6LJ8yiwoKIrrfCiCc8y0OEFwC5BzKAeD6CYzngelKti.rFqkLYZ.', '0901000002', 'CRM_MANAGER', 'active', NOW(), NOW())
+  ('11111111-1111-4111-8111-111111111111', 'Quản trị Hệ thống (Admin Server)', 'admin@miva.vn', '$2b$10$n6LJ8yiwoKIrrfCiCc8y0OEFwC5BzKAeD6CYzngelKti.rFqkLYZ.', '0901000001', 'SUPER_ADMIN', 'SUPER_ADMIN', 'active', NOW(), NOW()),
+  ('22222222-2222-4222-8222-222222222222', 'Người Quản lý CRM', 'crm@miva.vn', '$2b$10$n6LJ8yiwoKIrrfCiCc8y0OEFwC5BzKAeD6CYzngelKti.rFqkLYZ.', '0901000002', 'CRM_MANAGER', 'CRM_MANAGER', 'active', NOW(), NOW())
 ON CONFLICT (email) DO UPDATE
 SET password = EXCLUDED.password,
     department = EXCLUDED.department,
+    "roleCode" = EXCLUDED."roleCode",
     status = 'active',
     "deletedAt" = NULL;
 

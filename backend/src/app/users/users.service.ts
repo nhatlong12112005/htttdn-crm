@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   Optional,
@@ -17,6 +18,7 @@ import {
 } from '../../common/utils/paginaton-util/pagintion-util.service';
 import type { UserInfo } from '../../common/decorators/user.decorator';
 import { RealtimeService } from '../realtime/realtime.service';
+import { resolveAdminRole } from '../../common/guards/access-control/admin-role';
 
 const COMMON_ALLOWED_FIELDS = [
   'fullName',
@@ -63,13 +65,34 @@ export class UsersService {
     return `${prefix}-${id.slice(0, 8).toUpperCase()}`;
   }
 
+  private async getActorAdminRole(currentUser?: UserInfo) {
+    if (!currentUser || currentUser.role !== 'admin') return null;
+    if (currentUser.adminRole) return currentUser.adminRole;
+    const admin = await this.prisma.extended.admin.findUnique({
+      where: { id: currentUser.userID },
+      select: { roleCode: true, department: true },
+    });
+    return admin ? resolveAdminRole(admin) : null;
+  }
+
+  private async assertAccountScope(id: string, currentUser?: UserInfo) {
+    if ((await this.getActorAdminRole(currentUser)) !== 'CRM_MANAGER') return;
+    const admin = await this.prisma.extended.admin.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (admin) {
+      throw new ForbiddenException('CRM chỉ được quản lý tài khoản khách hàng');
+    }
+  }
+
   async getUsers(query: {
     page?: number;
     itemPerPage?: number;
     role?: string;
     search?: string;
     status?: string;
-  }) {
+  }, currentUser?: UserInfo) {
     const { page, itemPerPage, skip } = normalizePagination(query);
     const search = query.search?.trim();
     const role = query.role?.toLowerCase();
@@ -79,6 +102,9 @@ export class UsersService {
         : undefined;
 
     if (role === 'admin') {
+      if ((await this.getActorAdminRole(currentUser)) === 'CRM_MANAGER') {
+        throw new ForbiddenException('CRM không được xem tài khoản quản trị');
+      }
       const where: Prisma.AdminWhereInput = {
         deletedAt: null,
         ...(status ? { status } : {}),
@@ -108,6 +134,7 @@ export class UsersService {
             phone: true,
             avatarUrl: true,
             department: true,
+            roleCode: true,
             status: true,
             createdAt: true,
           },
@@ -119,7 +146,7 @@ export class UsersService {
           ...a,
           userCode: this.formatAccountCode('ADM', a.id),
           role: 'admin',
-          adminRole: a.department || 'SUPER_ADMIN',
+          adminRole: resolveAdminRole(a),
           address: '',
         })),
         totalItems,
@@ -201,7 +228,7 @@ export class UsersService {
     );
   }
 
-  async createUser(data: Record<string, any>) {
+  async createUser(data: Record<string, any>, currentUser?: UserInfo) {
     const email = (data.email || '').trim().toLowerCase();
     const fullName = (data.fullName || '').trim();
     if (!fullName || !email) {
@@ -213,10 +240,23 @@ export class UsersService {
     const rawPassword = data.password?.trim() || 'admin123';
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
     const roleInput = (data.role || 'customer').toLowerCase();
+    if (roleInput !== 'admin' && roleInput !== 'customer') {
+      throw new BadRequestException('Loại tài khoản không hợp lệ');
+    }
+    if (
+      roleInput === 'admin' &&
+      (await this.getActorAdminRole(currentUser)) === 'CRM_MANAGER'
+    ) {
+      throw new ForbiddenException('CRM không được tạo tài khoản quản trị');
+    }
     const status: UserStatus =
       data.status === 'inactive' ? UserStatus.inactive : UserStatus.active;
 
     if (roleInput === 'admin') {
+      const roleCode = data.department?.trim() || 'CRM_MANAGER';
+      if (roleCode !== 'SUPER_ADMIN' && roleCode !== 'CRM_MANAGER') {
+        throw new BadRequestException('Vai trò quản trị không hợp lệ');
+      }
       const createdAdmin = await this.prisma.extended.admin.create({
         data: {
           fullName,
@@ -224,7 +264,8 @@ export class UsersService {
           password: hashedPassword,
           phone: data.phone?.trim() || null,
           avatarUrl: data.avatarUrl?.trim() || null,
-          department: data.department?.trim() || 'CRM_MANAGER',
+          department: roleCode,
+          roleCode,
           status,
         },
       });
@@ -261,7 +302,8 @@ export class UsersService {
     return this.getUser(createdClient.id);
   }
 
-  async getUser(id: string) {
+  async getUser(id: string, currentUser?: UserInfo) {
+    await this.assertAccountScope(id, currentUser);
     const client = await this.prisma.extended.client.findUnique({
       where: { id },
       select: {
@@ -316,6 +358,7 @@ export class UsersService {
         phone: true,
         avatarUrl: true,
         department: true,
+        roleCode: true,
         status: true,
         createdAt: true,
       },
@@ -326,7 +369,7 @@ export class UsersService {
         userCode: this.formatAccountCode('ADM', admin.id),
         address: '',
         role: 'admin',
-        adminRole: admin.department || 'SUPER_ADMIN',
+        adminRole: resolveAdminRole(admin),
       };
     }
 
@@ -348,18 +391,39 @@ export class UsersService {
     }
 
     if (targetRole === 'admin') {
+      const target = await this.prisma.extended.admin.findUnique({
+        where: { id },
+        select: { roleCode: true, department: true },
+      });
+      if (!target || resolveAdminRole(target) !== 'SUPER_ADMIN') return;
       const allActiveAdmins = await this.prisma.extended.admin.findMany({
         where: { status: 'active', deletedAt: null },
-        select: { id: true },
+        select: { id: true, roleCode: true, department: true },
       });
       const remainingActiveAdmins = allActiveAdmins.filter(
-        (a) => a.id !== id,
+        (a) => a.id !== id && resolveAdminRole(a) === 'SUPER_ADMIN',
       ).length;
       if (remainingActiveAdmins === 0) {
         throw new BadRequestException(
           'Không thể khóa tài khoản quản trị viên đang hoạt động cuối cùng',
         );
       }
+    }
+  }
+
+  private async assertCanChangeAdminRole(id: string, nextRole: string) {
+    if (nextRole !== 'CRM_MANAGER') return;
+    const target = await this.prisma.extended.admin.findUnique({
+      where: { id },
+      select: { roleCode: true, department: true },
+    });
+    if (!target || resolveAdminRole(target) !== 'SUPER_ADMIN') return;
+    const activeAdmins = await this.prisma.extended.admin.findMany({
+      where: { status: 'active', deletedAt: null },
+      select: { id: true, roleCode: true, department: true },
+    });
+    if (!activeAdmins.some((a) => a.id !== id && resolveAdminRole(a) === 'SUPER_ADMIN')) {
+      throw new BadRequestException('Không thể hạ quyền quản trị viên hệ thống cuối cùng');
     }
   }
 
@@ -400,6 +464,7 @@ export class UsersService {
     data: Record<string, any>,
     currentUser?: UserInfo,
   ) {
+    await this.assertAccountScope(id, currentUser);
     const {
       role: _r,
       password: _p,
@@ -442,6 +507,13 @@ export class UsersService {
       if (!existing) continue;
 
       const roleData = pickAllowed(role, updateData);
+      if (role === 'admin' && roleData.department !== undefined) {
+        if (roleData.department !== 'SUPER_ADMIN' && roleData.department !== 'CRM_MANAGER') {
+          throw new BadRequestException('Vai trò quản trị không hợp lệ');
+        }
+        roleData.roleCode = roleData.department;
+        await this.assertCanChangeAdminRole(id, roleData.department);
+      }
       await this.assertCanChangeStatus(id, role, roleData.status, currentUser);
 
       if (roleData.email) {
@@ -490,6 +562,7 @@ export class UsersService {
   }
 
   async deleteUser(id: string, currentUser?: UserInfo) {
+    await this.assertAccountScope(id, currentUser);
     const roles: AccountRole[] = ['client', 'admin'];
     for (const role of roles) {
       const delegate = (this.prisma.extended as any)[role];

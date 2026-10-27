@@ -147,7 +147,7 @@ export default function Cart() {
 
   const handleCheckoutShopOnly = (vendorItems) => {
     const ids = vendorItems.map((i) => i.id);
-    navigate('/checkout', { state: { cartItemIds: ids, voucherSelections: pricing.selections.filter(selection => selection.vendorId === (vendorItems[0]?.productVariant?.productColor?.product?.vendorId || 'platform')) } });
+    navigate('/checkout', { state: { cartItemIds: ids, voucherCodes: pricing.codes } });
   };
 
   const handleProceedCheckout = () => {
@@ -155,7 +155,7 @@ export default function Cart() {
       alert('Vui lòng chọn ít nhất 1 sản phẩm để tiến hành thanh toán');
       return;
     }
-    navigate('/checkout', { state: { cartItemIds: Array.from(selectedItemIds), voucherSelections: pricing.selections } });
+    navigate('/checkout', { state: { cartItemIds: Array.from(selectedItemIds), voucherCodes: pricing.codes } });
   };
 
   if (isLoadingCart) return <Loading text="Đang tải giỏ hàng..." />;
@@ -178,7 +178,7 @@ export default function Cart() {
         <div>
           <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">Giỏ hàng của bạn</h1>
           <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
-            Tổng cộng {items.length} sản phẩm từ {vendorGroups.length} nhà bán hàng
+            Tổng cộng {items.length} sản phẩm tại Cửa hàng MIVA Fashion
           </p>
         </div>
 
@@ -235,7 +235,7 @@ export default function Cart() {
                           {group.storeName}
                         </span>
                         <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                          Gian hàng đối tác
+                          Chính hãng MIVA
                         </span>
                       </div>
                     </div>
@@ -247,7 +247,7 @@ export default function Cart() {
                     onClick={() => handleCheckoutShopOnly(group.items)}
                     className="text-xs font-semibold text-primary hover:text-primary-dark hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Mua riêng shop này</span>
+                    <span>Thanh toán ngay</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -358,7 +358,7 @@ export default function Cart() {
 
 
             <VoucherPricing items={selectedItems} pricing={pricing} />
-            {/* Multi-vendor Split Invoices */}
+            {/* Item group summaries */}
             {selectedVendorGroups.length > 1 && (
               <div className="space-y-3 pt-3 border-t border-light-border dark:border-dark-border">
                 <div className="flex items-center justify-between text-xs font-bold text-light-muted dark:text-dark-muted uppercase tracking-wider">
@@ -393,7 +393,7 @@ export default function Cart() {
                           </div>
                           {packDiscount > 0 ? (
                             <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                              <span>Giảm voucher shop:</span>
+                              <span>Giảm voucher:</span>
                               <span className="font-semibold">-{formatPrice(packDiscount)}</span>
                             </div>
                           ) : null}

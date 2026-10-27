@@ -1,29 +1,50 @@
 import { useState } from 'react';
-import { Shield, Eye, EyeOff, Loader2, Lock, Activity, Cpu } from 'lucide-react';
+import {
+  ShieldCheck,
+  Server,
+  Eye,
+  EyeOff,
+  Loader2,
+} from 'lucide-react';
 import { Button, Input } from '../../components/ui';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function AdminLogin() {
+export default function Login({ mode: propMode }) {
   const navigate = useNavigate();
-  const { login, user, loading } = useAuth();
+  const { login, logout, user, loading } = useAuth();
+
+  const isSystemLogin = propMode === 'admin';
+
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Đang check auth, hiển thị loading
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#060b19]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      <div
+        className={`min-h-screen flex items-center justify-center ${
+          isSystemLogin ? 'bg-slate-950' : 'bg-slate-50'
+        }`}
+      >
+        <div
+          className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+            isSystemLogin ? 'border-rose-500' : 'border-indigo-600'
+          }`}
+        />
       </div>
     );
   }
 
-  // Nếu đã đăng nhập, redirect về dashboard
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    const isAdminServerUser = user.roleCode === 'SUPER_ADMIN';
+    if (isAdminServerUser && isSystemLogin) {
+      return <Navigate to="/system/accounts" replace />;
+    }
+    if (!isAdminServerUser && !isSystemLogin && user.roleCode === 'CRM_MANAGER') {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -32,127 +53,211 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
-      await login(formData.email, formData.password);
-      navigate('/dashboard');
+      const profile = await login(formData.email, formData.password);
+      const isAdminServerUser = profile?.roleCode === 'SUPER_ADMIN';
+
+      if (isSystemLogin) {
+        if (!isAdminServerUser) {
+          await logout();
+          setError(
+            'Tài khoản này không có quyền truy cập Admin Server!'
+          );
+          return;
+        }
+        navigate('/system/accounts');
+      } else {
+        if (isAdminServerUser) {
+          await logout();
+          setError(
+            'Vui lòng đăng nhập tài khoản Admin tại cổng riêng của Admin Server!'
+          );
+          return;
+        }
+        navigate('/dashboard');
+      }
     } catch (err) {
-      const message = err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+      const message =
+        err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.';
       setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleFillDemo = () => {
+    setError('');
+    if (isSystemLogin) {
+      setFormData({ email: 'admin@miva.vn', password: 'admin123' });
+    } else {
+      setFormData({ email: 'crm@miva.vn', password: 'admin123' });
+    }
+  };
+
+  // ============================================================================
+  // GIAO DIỆN ĐĂNG NHẬP 1: ADMIN SERVER (:5175)
+  // ============================================================================
+  if (isSystemLogin) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 font-sans">
+        <div className="max-w-md w-full bg-slate-900 rounded-2xl border border-slate-800 p-8 shadow-xl">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-rose-600 text-white mb-3 shadow-md">
+              <Server className="w-6 h-6" />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Admin Server</h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Quản lý Tài khoản &amp; Dashboard Doanh thu
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-rose-950/70 text-rose-200 text-xs font-medium rounded-xl border border-rose-800">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Email Admin
+              </label>
+              <input
+                type="email"
+                placeholder="admin@miva.vn"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="relative">
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Mật khẩu
+              </label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-rose-500"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-[32px] p-1 text-slate-400 hover:text-slate-200"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end text-xs">
+              <button
+                type="button"
+                onClick={handleFillDemo}
+                className="font-semibold text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+              >
+                Điền nhanh TK Admin (admin@miva.vn)
+              </button>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full h-11 text-sm font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white border-none"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang đăng nhập...
+                </span>
+              ) : (
+                'Đăng nhập Admin Server'
+              )}
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // GIAO DIỆN ĐĂNG NHẬP 2: NGƯỜI QUẢN LÝ CRM (:5174)
+  // ============================================================================
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#050b18] flex items-center justify-center p-4">
-      {/* Cyber-Enterprise Aurora Mesh Background */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[560px] h-[560px] rounded-full bg-blue-600/30 blur-[140px]" />
-        <div className="absolute top-1/4 -right-36 w-[500px] h-[500px] rounded-full bg-indigo-600/30 blur-[140px]" />
-        <div className="absolute -bottom-44 left-1/3 w-[560px] h-[560px] rounded-full bg-cyan-500/20 blur-[150px]" />
-
-        {/* Perspective Grid Matrix */}
-        <div
-          className="absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, #60a5fa 1px, transparent 1px), linear-gradient(to bottom, #60a5fa 1px, transparent 1px)',
-            backgroundSize: '44px 44px',
-          }}
-        />
-
-        {/* Orbital Command Rings */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[680px] h-[680px] rounded-full border border-blue-500/15" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[920px] h-[920px] rounded-full border border-dashed border-indigo-400/10" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1160px] h-[1160px] rounded-full border border-cyan-500/5" />
-      </div>
-
-      {/* Floating Command Center Badges (Desktop) */}
-      <div className="hidden lg:flex items-center gap-2.5 absolute top-8 left-8 px-4 py-2 rounded-full bg-slate-900/70 backdrop-blur-xl border border-blue-500/20 text-xs text-slate-300 shadow-lg">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="font-medium text-white">MIVA Core Command</span>
-        <span className="text-slate-500">•</span>
-        <span className="text-blue-400 font-mono text-[11px]">SYS-ONLINE</span>
-      </div>
-
-      <div className="hidden lg:flex items-center gap-4 absolute bottom-8 inset-x-8 justify-between text-xs text-slate-400/80 pointer-events-none">
-        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md">
-          <Lock className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Zero-Trust Admin Gateway • 256-bit TLS</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md">
-            <Activity className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Realtime Telemetry Active</span>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 font-sans">
+      <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-lg">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-600 text-white mb-3 shadow-md">
+            <ShieldCheck className="w-6 h-6" />
           </div>
-          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/10 backdrop-blur-md">
-            <Cpu className="w-3.5 h-3.5 text-blue-400" />
-            <span>MIVA Enterprise v2.6</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Frosted Glass Login Card */}
-      <div className="max-w-md w-full bg-white/95 dark:bg-slate-900/90 backdrop-blur-2xl transition-colors rounded-3xl shadow-[0_25px_70px_-15px_rgba(37,99,235,0.45)] border border-white/30 dark:border-slate-700/80 ring-1 ring-blue-500/20 p-8 sm:p-10 relative z-10 overflow-hidden">
-        {/* Top Luminous Accent Bar */}
-        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-blue-600 via-cyan-400 to-indigo-600" />
-
-        <div className="text-center mb-8">
-          <div className="relative inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 text-white mb-4 shadow-xl shadow-blue-500/35 ring-4 ring-blue-500/15">
-            <Shield className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Admin Portal</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1.5 text-sm">Sign in to manage the system</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Quản lý Khách hàng (CRM)
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 text-xs">
+            Đăng nhập vào hệ thống quản lý khách hàng &amp; đơn hàng
+          </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-rose-950/50 text-red-700 dark:text-rose-300 text-xs font-medium rounded-xl border border-red-200 dark:border-rose-800">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <Input 
-            label="Email Address" 
-            type="email" 
-            placeholder="admin@example.com"
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="Email"
+            type="email"
+            placeholder="crm@miva.vn"
             value={formData.email}
-            onChange={e => setFormData({ ...formData, email: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required
           />
-          
+
           <div className="relative">
-            <Input 
-              label="Password" 
-              type={showPassword ? 'text' : 'password'} 
+            <Input
+              label="Mật khẩu"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={formData.password}
-              onChange={e => setFormData({ ...formData, password: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
             />
-            <button 
+            <button
               type="button"
-              className="absolute right-3 top-[28px] p-1 text-slate-400 hover:text-slate-600 dark:text-slate-400"
+              className="absolute right-3 top-[28px] p-1 text-slate-400 hover:text-slate-600"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-              <span className="text-slate-600 dark:text-slate-400">Remember me</span>
-            </label>
+          <div className="flex items-center justify-end text-xs">
+            <button
+              type="button"
+              onClick={handleFillDemo}
+              className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              Điền nhanh TK CRM (crm@miva.vn)
+            </button>
           </div>
 
-          <Button type="submit" variant="primary" className="w-full h-12 text-base mt-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-600/25" disabled={isLoading}>
+          <Button
+            type="submit"
+            variant="primary"
+            className="w-full h-11 text-sm font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+            disabled={isLoading}
+          >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Đang đăng nhập...
               </span>
             ) : (
-              'Sign In to Dashboard'
+              'Đăng nhập CRM'
             )}
           </Button>
         </form>

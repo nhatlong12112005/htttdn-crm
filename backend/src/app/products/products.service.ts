@@ -10,7 +10,10 @@ import { PaginationUtilService } from 'src/common/utils/paginaton-util/pagintion
 import { QueryUtilService } from 'src/common/utils/query-util/query-util.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { StringUtilService } from 'src/common/utils/string-util/string-util.service';
-import { GetProductsPaginationDto } from './dto/get-product.dto';
+import {
+  GetProductsPaginationDto,
+  GetAdminProductsPaginationDto,
+} from './dto/get-product.dto';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -32,7 +35,7 @@ const productRelations = {
 } satisfies Prisma.ProductInclude;
 
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const MAX_IMAGES_PER_COLOR = 20;
 
@@ -114,6 +117,15 @@ export class ProductService extends PrismaBaseService<'product'> {
 
     return this.findProducts(rest, {
       status: ProductStatus.active,
+      category: this.buildCategoryCondition(category),
+    });
+  }
+
+  async getAdminProducts(query: GetAdminProductsPaginationDto) {
+    const { category, status, ...rest } = query;
+
+    return this.findProducts(rest, {
+      ...(status && status !== 'all' ? { status } : {}),
       category: this.buildCategoryCondition(category),
     });
   }
@@ -472,6 +484,8 @@ export class ProductService extends PrismaBaseService<'product'> {
     productId: string,
     colors: NonNullable<UpdateProductDto['colors']>,
   ) {
+    const activeColorIds: string[] = [];
+
     for (const color of colors) {
       const imageUrls = this.normalizeImages(color.imageUrls);
       let colorId: string;
@@ -513,9 +527,41 @@ export class ProductService extends PrismaBaseService<'product'> {
         colorId = saved.id;
       }
 
+      activeColorIds.push(colorId);
+
+      const activeVariantIds: string[] = [];
       for (const variant of color.variants ?? []) {
-        await this.syncVariant(tx, colorId, variant);
+        const variantId = await this.syncVariant(tx, colorId, variant);
+        if (variantId) {
+          activeVariantIds.push(variantId);
+        }
       }
+
+      if (typeof tx.productVariant.updateMany === 'function') {
+        await tx.productVariant.updateMany({
+          where: {
+            productColorId: colorId,
+            deletedAt: null,
+            ...(activeVariantIds.length > 0
+              ? { id: { notIn: activeVariantIds } }
+              : {}),
+          },
+          data: { deletedAt: new Date() },
+        });
+      }
+    }
+
+    if (typeof tx.productColor.updateMany === 'function') {
+      await tx.productColor.updateMany({
+        where: {
+          productId,
+          deletedAt: null,
+          ...(activeColorIds.length > 0
+            ? { id: { notIn: activeColorIds } }
+            : {}),
+        },
+        data: { deletedAt: new Date() },
+      });
     }
   }
 
@@ -523,7 +569,7 @@ export class ProductService extends PrismaBaseService<'product'> {
     tx: Prisma.TransactionClient,
     productColorId: string,
     variant: { id?: string; size: string; price: number; stock?: number },
-  ) {
+  ): Promise<string | undefined> {
     const stock = variant.stock ?? 0;
 
     if (variant.id && !variant.id.startsWith('temp-')) {
@@ -541,7 +587,7 @@ export class ProductService extends PrismaBaseService<'product'> {
         where: { id: owned.id },
         data: { size: variant.size, price: variant.price, stock },
       });
-      return;
+      return owned.id;
     }
 
     const existing = await tx.productVariant.findUnique({
@@ -558,12 +604,13 @@ export class ProductService extends PrismaBaseService<'product'> {
         where: { id: existing.id },
         data: { deletedAt: null, price: variant.price, stock },
       });
-      return;
+      return existing.id;
     }
 
-    await tx.productVariant.create({
+    const created = await tx.productVariant.create({
       data: { productColorId, size: variant.size, price: variant.price, stock },
     });
+    return created?.id;
   }
 
   private normalizeImages(imageUrls?: string[]): string[] {

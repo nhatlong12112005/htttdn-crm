@@ -3,7 +3,7 @@
 | File | Mô tả |
 |---|---|
 | `schema.sql` | Script tạo CSDL (sinh từ Prisma, xem lệnh bên dưới) |
-| `seed.sql` | Dữ liệu demo + tài khoản test |
+| `seed_demo_accounts.sql` | Tài khoản demo Admin Server, CRM và khách hàng |
 | `backup.ps1` | Sao lưu CSDL bằng `pg_dump` → `database/backup/*.dump` |
 | `restore.ps1` | Phục hồi CSDL bằng `pg_restore` |
 

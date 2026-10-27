@@ -1,7 +1,8 @@
 import {
   BadRequestException,
   Injectable,
-  NotFoundException} from '@nestjs/common';
+  NotFoundException,
+} from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
 
 import { PrismaService } from 'src/common/prisma/prisma.service';
@@ -18,14 +19,6 @@ const cartInclude = {
               product: {
                 include: {
                   category: true,
-                  vendor: {
-                    select: {
-                      id: true,
-                      fullName: true,
-                      storeName: true,
-                      avatarUrl: true,
-                    },
-                  },
                 },
               },
             },
@@ -45,7 +38,8 @@ export class CartService {
       where: { clientId },
       create: { clientId },
       update: { deletedAt: null },
-      include: cartInclude});
+      include: cartInclude,
+    });
     return this.format(cart);
   }
 
@@ -55,12 +49,16 @@ export class CartService {
       where: { clientId },
       create: { clientId },
       update: { deletedAt: null },
-      select: { id: true }});
+      select: { id: true },
+    });
     const current = await this.prisma.extended.cartItem.findUnique({
       where: {
         cartId_productVariantId: {
           cartId: cart.id,
-          productVariantId: dto.productVariantId}}});
+          productVariantId: dto.productVariantId,
+        },
+      },
+    });
     const quantity = (current?.quantity ?? 0) + dto.quantity;
     if (quantity > variant.stock) {
       throw new BadRequestException('Số lượng vượt quá tồn kho');
@@ -69,9 +67,12 @@ export class CartService {
       where: {
         cartId_productVariantId: {
           cartId: cart.id,
-          productVariantId: dto.productVariantId}},
+          productVariantId: dto.productVariantId,
+        },
+      },
       create: { cartId: cart.id, ...dto },
-      update: { quantity }});
+      update: { quantity },
+    });
     return this.get(clientId);
   }
 
@@ -83,7 +84,8 @@ export class CartService {
     }
     await this.prisma.extended.cartItem.update({
       where: { id: itemId },
-      data: { quantity }});
+      data: { quantity },
+    });
     return this.get(clientId);
   }
 
@@ -94,9 +96,13 @@ export class CartService {
   }
 
   async clear(clientId: string) {
-    const cart = await this.prisma.extended.cart.findUnique({ where: { clientId } });
+    const cart = await this.prisma.extended.cart.findUnique({
+      where: { clientId },
+    });
     if (cart)
-      await this.prisma.extended.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await this.prisma.extended.cartItem.deleteMany({
+        where: { cartId: cart.id },
+      });
     return this.get(clientId);
   }
 
@@ -108,7 +114,10 @@ export class CartService {
           deletedAt: null,
           productColor: {
             deletedAt: null,
-            product: { deletedAt: null, status: ProductStatus.active }}}})
+            product: { deletedAt: null, status: ProductStatus.active },
+          },
+        },
+      })
       .then((variant) => {
         if (!variant)
           throw new NotFoundException('Biến thể sản phẩm không tồn tại');
@@ -143,6 +152,7 @@ export class CartService {
     return {
       ...cart,
       totalQuantity: cart.items.reduce((sum, item) => sum + item.quantity, 0),
-      subtotalAmount: subtotal.toFixed(2)};
+      subtotalAmount: subtotal.toFixed(2),
+    };
   }
 }

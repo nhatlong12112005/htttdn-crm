@@ -1,14 +1,20 @@
 import axios from 'axios';
+import { getAppRoleHeader } from '../utils/portalMode';
 
 const API_BASE_URL = '/api';
 
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // gửi cookie (access_token, refresh_token) tự động
+  withCredentials: true, // gửi cookie (accessToken_admin hoặc accessToken_crm) tự động theo cổng
   headers: {
     'Content-Type': 'application/json',
-    'x-app-role': 'admin',
   },
+});
+
+axiosClient.interceptors.request.use((config) => {
+  config.headers = config.headers || {};
+  config.headers['x-app-role'] = getAppRoleHeader();
+  return config;
 });
 
 // Response interceptor – tự động refresh token khi bị 401
@@ -16,11 +22,11 @@ let isRefreshing = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
+  failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve();
+      prom.resolve(token);
     }
   });
   failedQueue = [];
@@ -30,9 +36,10 @@ axiosClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (!error.response) {
-      error.message = error.code === 'ECONNABORTED'
-        ? 'Yêu cầu quá thời gian. Vui lòng thử lại.'
-        : 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng và thử lại.';
+      error.message =
+        error.code === 'ECONNABORTED'
+          ? 'Yêu cầu quá thời gian. Vui lòng thử lại.'
+          : 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng và thử lại.';
     }
     const originalRequest = error.config;
 
@@ -40,7 +47,7 @@ axiosClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Không retry cho các auth-related endpoints
       const skipUrls = ['/auth/sign-in', '/auth/sign-out', '/auth/refresh-token', '/admins/profile'];
-      if (skipUrls.some(url => originalRequest.url?.includes(url))) {
+      if (skipUrls.some((url) => originalRequest.url?.includes(url))) {
         return Promise.reject(error);
       }
 

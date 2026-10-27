@@ -105,7 +105,7 @@ export default function Checkout() {
       0,
     );
   }, [checkoutItems]);
-  const pricing = useCheckoutPricing(checkoutItems, location.state?.voucherSelections || [], !isSubmitting && !checkoutCompletedRef.current);
+  const pricing = useCheckoutPricing(checkoutItems, location.state?.voucherCodes || [], !isSubmitting && !checkoutCompletedRef.current);
 
   if (isLoadingCart) {
     return <Loading text="Đang tải giỏ hàng..." />;
@@ -240,8 +240,7 @@ export default function Checkout() {
         receiverPhone: receiverPhone.trim(),
         shippingAddress: shippingAddress.trim(),
         paymentMethod: paymentMethod,
-        voucherCodes: [],
-        voucherSelections: pricing.selections,
+        voucherCodes: pricing.codes,
         expectedTotalAmount: Number(pricing.data.totalAmount),
         cartItemIds: checkoutItems.map((i) => i.id),
       };
@@ -250,13 +249,12 @@ export default function Checkout() {
       const response = await orderService.checkout(payload);
       const resData = response?.data || response;
       const createdOrders = resData?.orders || (resData?.id ? [resData] : []);
-      const numOrders = createdOrders.length;
       
       // Invalidate cart and orders queries
       queryClient.invalidateQueries({ queryKey: ['cart'], refetchType: 'none' });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
-      alert(`Đặt hàng thành công! Hệ thống đã tạo ${numOrders} đơn hàng độc lập cho ${numOrders} cửa hàng để đóng gói riêng biệt.`);
+      alert('Đặt hàng thành công!');
 
       if (paymentMethod === 'credit_card' || paymentMethod === 'pay_later') {
         const [firstId, ...remainingIds] = createdOrders.map(order => order.id);
@@ -287,7 +285,7 @@ export default function Checkout() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">Thanh toán đơn hàng</h1>
         <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
-          Đơn hàng sẽ được tách thành {vendorPackages.length} kiện hàng tương ứng với {vendorPackages.length} nhà bán hàng
+          Kiểm tra địa chỉ nhận hàng, phương thức thanh toán và xác nhận đặt hàng tại Cửa hàng MIVA Fashion
         </p>
       </div>
       
@@ -466,7 +464,7 @@ export default function Checkout() {
               isLoading={isSubmitting}
               disabled={!pricing.ready}
             >
-              Xác nhận đặt {vendorPackages.length} đơn hàng
+              Xác nhận đặt hàng ({checkoutItems.length} sản phẩm)
             </Button>
           </form>
         </div>
@@ -482,7 +480,7 @@ export default function Checkout() {
             <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs leading-relaxed flex items-start gap-2">
               <Package className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>
-                Mỗi cửa hàng sẽ đóng gói sản phẩm của họ thành một đơn hàng riêng biệt với mã vận đơn riêng.
+                Đơn hàng được đóng gói và kiểm định chất lượng trực tiếp từ kho trung tâm MIVA Fashion.
               </span>
             </div>
             
@@ -523,7 +521,7 @@ export default function Checkout() {
             </div>
 
             <VoucherPricing items={checkoutItems} pricing={pricing} />
-            {/* Multi-vendor Split Invoices */}
+            {/* Item group summaries */}
             {vendorPackages.length > 1 && (
               <div className="space-y-3 pt-4 border-t border-light-border dark:border-dark-border">
                 <div className="flex items-center justify-between text-xs font-bold text-light-muted dark:text-dark-muted uppercase tracking-wider">
@@ -558,7 +556,7 @@ export default function Checkout() {
                           </div>
                           {packDiscount > 0 ? (
                             <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                              <span>Giảm voucher shop:</span>
+                              <span>Giảm voucher:</span>
                               <span className="font-semibold">-{formatPrice(packDiscount)}</span>
                             </div>
                           ) : null}

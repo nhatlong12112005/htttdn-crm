@@ -5,7 +5,7 @@ import { z } from 'zod';
 export const SurveyStatusSchema = z
   .object({
     status: z.enum([SurveyStatus.active, SurveyStatus.closed]),
-    recipientIds: z.array(z.uuid()).optional(),
+    recipientIds: z.array(z.uuid()).min(1).max(1000).optional(),
   })
   .strict();
 

@@ -3,12 +3,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 export const CheckoutSelectionSchema = z.object({
-  voucherCodes: z.array(z.string().trim().min(3).max(50).toUpperCase()).max(5).default([]),
-  voucherSelections: z.array(z.object({
-    vendorId: z.union([z.uuid(), z.literal('platform')]),
-    codes: z.array(z.string().trim().min(3).max(50).toUpperCase()).max(2),
-  }).strict()).max(50).optional(),
-  vendorId: z.string().uuid().optional(),
+  voucherCodes: z.array(z.string().trim().min(3).max(50).toUpperCase()).max(1).default([]),
   cartItemIds: z.array(z.string().uuid()).min(1).max(200).optional(),
 }).strict();
 

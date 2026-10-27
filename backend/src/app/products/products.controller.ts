@@ -20,7 +20,10 @@ import { ProductService } from './products.service';
 import { Roles } from 'src/common/guards/access-control/roles.decorator';
 
 import { CreateProductDto } from './dto/create-product.dto';
-import { GetProductsPaginationDto } from './dto/get-product.dto';
+import {
+  GetProductsPaginationDto,
+  GetAdminProductsPaginationDto,
+} from './dto/get-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { User as CurrentUser } from 'src/common/decorators/user.decorator';
 import type { UserInfo } from 'src/common/decorators/user.decorator';
@@ -80,6 +83,12 @@ export class ProductsController {
   @Roles('admin')
   createProduct(@Body() createProductDto: CreateProductDto) {
     return this.productService.createProduct(createProductDto);
+  }
+
+  @Get('admin/all')
+  @Roles('admin')
+  getAdminProducts(@Query() query: GetAdminProductsPaginationDto) {
+    return this.productService.getAdminProducts(query);
   }
 
   @Get()

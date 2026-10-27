@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
+import { getAppRoleHeader } from '../utils/portalMode';
 
 export default function RealtimeBridge() {
   const { user } = useAuth();
   useEffect(() => {
     if (!user?.id) return;
-    const socket = io('/realtime', { auth: { role: 'admin' }, withCredentials: true });
+    const role = getAppRoleHeader();
+    const socket = io('/realtime', { auth: { role }, withCredentials: true });
     const dispatch = (name) => () => window.dispatchEvent(new Event(`miva:${name}`));
     const orders = dispatch('orders');
     const shipping = dispatch('shipping');

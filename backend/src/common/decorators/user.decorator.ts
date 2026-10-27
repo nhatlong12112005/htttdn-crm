@@ -17,6 +17,7 @@ export interface UserInfo {
   gender: string | null;
   address: string | null;
   role: 'admin' | 'client' | 'vendor' | 'employee';
+  adminRole?: 'SUPER_ADMIN' | 'CRM_MANAGER';
 }
 
 export const User = createParamDecorator(

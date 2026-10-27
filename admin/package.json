@@ -4,8 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node dev-servers.mjs",
+    "dev:crm": "vite --mode crm --port 5174 --strictPort",
+    "dev:admin": "vite --mode admin --port 5175 --strictPort",
     "build": "vite build",
+    "build:crm": "vite build --mode crm --outDir dist/crm",
+    "build:admin": "vite build --mode admin --outDir dist/admin",
     "lint": "oxlint",
     "preview": "vite preview"
   },

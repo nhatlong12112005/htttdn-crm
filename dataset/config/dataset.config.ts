@@ -20,7 +20,7 @@ export const CONFIG = {
     colorsPerProduct: { min: 1, max: 2 },
     variantsPerColor: { min: 2, max: 3 },
     platformVouchers: 2,
-    vendorVouchers: 3,
+    vendorVouchers: 0,
     productsPerVendorVoucher: { min: 2, max: 2 },
     cartsToCreate: 5,
     cartItemsPerCart: { min: 1, max: 2 },

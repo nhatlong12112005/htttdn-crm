@@ -12,8 +12,10 @@ export function AuthProvider({ children }) {
     try {
       const res = await authApi.getProfile();
       setUser(res.data);
+      return res.data;
     } catch {
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -24,11 +26,11 @@ export function AuthProvider({ children }) {
   }, [checkAuth]);
 
   const login = async (email, password) => {
-    const res = await authApi.signIn({ email, password });
+    await authApi.signIn({ email, password });
     // Sau khi sign-in, cookie đã được set tự động.
     // Fetch profile để lấy thông tin user
-    await checkAuth();
-    return res.data;
+    const profile = await checkAuth();
+    return profile;
   };
 
   const logout = async () => {

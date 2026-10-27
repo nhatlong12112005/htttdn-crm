@@ -24,6 +24,7 @@ import type { UserInfo } from '../../common/decorators/user.decorator';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 
 import { GetAdminsPaginationDto } from './dto/get-admin.dto';
+import { resolveAdminRole } from '../../common/guards/access-control/admin-role';
 
 @Injectable()
 export class AdminsService extends PrismaBaseService<'admin'> {
@@ -94,7 +95,7 @@ export class AdminsService extends PrismaBaseService<'admin'> {
       throw new NotFoundException('Admin not found');
     }
 
-    return admin;
+    return { ...admin, roleCode: resolveAdminRole(admin) };
   }
 
   private async assertCanLockAdmin(
@@ -107,11 +108,18 @@ export class AdminsService extends PrismaBaseService<'admin'> {
         'Không thể tự khóa tài khoản của chính mình',
       );
     }
-    const activeAdmins = await this.prismaService.extended.admin.findMany({
-      where: { status: 'active' },
-      select: { id: true },
+    const target = await this.prismaService.extended.admin.findUnique({
+      where: { id: targetId },
+      select: { roleCode: true, department: true },
     });
-    const remaining = activeAdmins.filter((a) => a.id !== targetId).length;
+    if (!target || resolveAdminRole(target) !== 'SUPER_ADMIN') return;
+    const activeAdmins = await this.prismaService.extended.admin.findMany({
+      where: { status: 'active', deletedAt: null },
+      select: { id: true, roleCode: true, department: true },
+    });
+    const remaining = activeAdmins.filter(
+      (a) => a.id !== targetId && resolveAdminRole(a) === 'SUPER_ADMIN',
+    ).length;
     if (remaining === 0) {
       throw new BadRequestException(
         'Không thể khóa tài khoản quản trị viên đang hoạt động cuối cùng',
@@ -126,6 +134,16 @@ export class AdminsService extends PrismaBaseService<'admin'> {
   }) {
     const { where, currentUser } = params;
     const dataUpdate = { ...params.data } as any;
+
+    if (dataUpdate.department !== undefined) {
+      if (dataUpdate.department !== 'SUPER_ADMIN' && dataUpdate.department !== 'CRM_MANAGER') {
+        throw new BadRequestException('Vai trò quản trị không hợp lệ');
+      }
+      dataUpdate.roleCode = dataUpdate.department;
+      if (dataUpdate.department === 'CRM_MANAGER') {
+        await this.assertCanLockAdmin(where.id, currentUser);
+      }
+    }
 
     if (dataUpdate.status) {
       dataUpdate.deletedAt = null;

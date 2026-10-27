@@ -143,11 +143,7 @@ export default function VoucherManagement() {
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-800 dark:text-slate-100">{v.name}</td>
                     <td className="px-4 py-3 text-xs">
-                      {v.scope === 'vendor' ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 font-medium">
-                          Shop: {v.vendor?.fullName || 'Vendor'} ({v.details?.length || 0} SP)
-                        </span>
-                      ) : Array.isArray(v.categories) && v.categories.length > 0 ? (
+                      {Array.isArray(v.categories) && v.categories.length > 0 ? (
                         <div className="flex flex-wrap gap-1 max-w-xs">
                           {v.categories.map(cat => (
                             <span

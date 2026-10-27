@@ -57,6 +57,7 @@ export const SurveyFieldsSchema = z
     scope: z.enum(SurveyScope).optional(),
     status: z.enum(SurveyStatus).optional(),
     audienceType: z.enum(SurveyAudienceType).optional(),
+    recipientIds: z.array(z.uuid()).max(1000).optional(),
     triggerType: z.enum(SurveyTriggerType).default(SurveyTriggerType.manual),
     startDate: z.iso.datetime({ offset: true }).nullable().optional().or(z.literal('')),
     endDate: z.iso.datetime({ offset: true }).nullable().optional().or(z.literal('')),
@@ -86,6 +87,13 @@ export function validateSurveyFields(
         path: ['questions'],
         message: 'Vị trí câu hỏi không được trùng nhau'});
     }
+  }
+  if (data.recipientIds && new Set(data.recipientIds).size !== data.recipientIds.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['recipientIds'],
+      message: 'Danh sách khách hàng nhận khảo sát không được trùng lặp',
+    });
   }
 }
 

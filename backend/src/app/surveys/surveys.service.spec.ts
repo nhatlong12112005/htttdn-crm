@@ -5,21 +5,22 @@ import {
   SurveyResponseStatus,
   SurveyScope,
   SurveyStatus,
-  SurveyTriggerType} from '@prisma/client';
+  SurveyTriggerType,
+} from '@prisma/client';
 
 import type { UserInfo } from 'src/common/decorators/user.decorator';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { SurveysService } from './surveys.service';
 
 describe('SurveysService', () => {
-  const vendorId = '11111111-1111-4111-8111-111111111111';
+  const adminId = '11111111-1111-4111-8111-111111111111';
   const customerId = '22222222-2222-4222-8222-222222222222';
   const surveyId = '33333333-3333-4333-8333-333333333333';
   const questionId = '44444444-4444-4444-8444-444444444444';
   const optionOneId = '55555555-5555-4555-8555-555555555555';
   const optionTwoId = '66666666-6666-4666-8666-666666666666';
 
-  const user = (userID: string, role: 'admin' | 'client' | 'vendor'): UserInfo => ({
+  const user = (userID: string, role: 'admin' | 'client'): UserInfo => ({
     userID,
     userEmail: `${role}@example.com`,
     fullName: role,
@@ -27,17 +28,18 @@ describe('SurveysService', () => {
     avatar: null,
     gender: null,
     address: null,
-    role});
+    role,
+  });
 
-  const managementSurvey = (createdById = vendorId) => ({
+  const managementSurvey = (createdById = adminId) => ({
     id: surveyId,
-    vendorId: createdById,
-    adminId: null,
+    adminId: createdById,
     title: 'Khảo sát',
     description: null,
     imageUrl: null,
-    scope: SurveyScope.vendor,
-    audienceType: SurveyAudienceType.vendor_buyers,
+    scope: SurveyScope.platform,
+    audienceType: SurveyAudienceType.all_users,
+    recipientIds: [],
     triggerType: SurveyTriggerType.manual,
     status: SurveyStatus.draft,
     startDate: null,
@@ -45,14 +47,16 @@ describe('SurveysService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
-    createdBy: { id: createdById, fullName: 'Vendor', role: 'vendor' as any },
+    createdByAdmin: { id: createdById, fullName: 'CRM Manager' },
     questions: [],
-    _count: { responses: 0 }});
+    _count: { responses: 0 },
+  });
 
-  it('creates a vendor survey as draft and assigns ownership from JWT', async () => {
+  it('creates an admin/CRM survey as draft and assigns ownership from JWT', async () => {
     const create = jest.fn().mockResolvedValue(managementSurvey());
     const service = new SurveysService({
-      extended: { survey: { create } }} as unknown as PrismaService);
+      extended: { survey: { create } },
+    } as unknown as PrismaService);
 
     await service.create(
       {
@@ -64,28 +68,35 @@ describe('SurveysService', () => {
             type: SurveyQuestionType.rating,
             required: true,
             position: 0,
-            options: []},
-        ]},
-      user(vendorId, 'vendor'),
+            options: [],
+          },
+        ],
+      },
+      user(adminId, 'admin'),
     );
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          vendorId,
+          adminId,
           status: SurveyStatus.draft,
           questions: {
             create: [
               expect.objectContaining({
                 type: SurveyQuestionType.rating,
-                required: true}),
-            ]}})}),
+                required: true,
+              }),
+            ],
+          },
+        }),
+      }),
     );
   });
 
-  it('does not let another vendor edit survey content they did not create', async () => {
+  it('does not let a client create or edit surveys', async () => {
     const prisma = {
-      survey: { findFirst: jest.fn().mockResolvedValue(managementSurvey()) }};
+      survey: { findFirst: jest.fn().mockResolvedValue(managementSurvey()) },
+    };
     Object.assign(prisma, { extended: prisma });
     const service = new SurveysService(prisma as unknown as PrismaService);
 
@@ -93,9 +104,26 @@ describe('SurveysService', () => {
       service.update(
         surveyId,
         { title: 'Nội dung đã sửa' },
-        user('77777777-7777-4777-8777-777777777777', 'vendor'),
+        user(customerId, 'client'),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects a selected-customer draft without saved recipients', async () => {
+    const service = new SurveysService({
+      extended: {
+        survey: {
+          findFirst: jest.fn().mockResolvedValue({
+            ...managementSurvey(),
+            audienceType: SurveyAudienceType.selected_users,
+            questions: [{ id: questionId, question: 'Đánh giá', type: SurveyQuestionType.rating, required: true, position: 1, options: [] }],
+          }),
+        },
+      },
+    } as unknown as PrismaService);
+
+    await expect(service.changeStatus(surveyId, SurveyStatus.active, user(adminId, 'admin')))
+      .rejects.toThrow('Vui lòng chọn ít nhất một khách hàng nhận khảo sát');
   });
 
   it('stores every selected option of a multiple-choice answer in its own row', async () => {
@@ -119,22 +147,32 @@ describe('SurveysService', () => {
                 options: [
                   { id: optionOneId, content: 'Đen', position: 0 },
                   { id: optionTwoId, content: 'Trắng', position: 1 },
-                ]},
-            ]}}),
-        update: jest.fn().mockResolvedValue({ id: 'response-id' })},
-      notification: { updateMany: jest.fn() }};
+                ],
+              },
+            ],
+          },
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'response-id' }),
+      },
+      notification: { updateMany: jest.fn() },
+    };
     const prisma = {
       $transaction: jest.fn(
         (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
-      )};
-    Object.assign(prisma, { extended: prisma, extendedTransaction: prisma.$transaction });
+      ),
+    };
+    Object.assign(prisma, {
+      extended: prisma,
+      extendedTransaction: prisma.$transaction,
+    });
     const service = new SurveysService(prisma as unknown as PrismaService);
 
     await service.submitResponse(
       '77777777-7777-4777-8777-777777777777',
       customerId,
       {
-        answers: [{ questionId, optionIds: [optionOneId, optionTwoId] }]},
+        answers: [{ questionId, optionIds: [optionOneId, optionTwoId] }],
+      },
     );
 
     expect(tx.surveyResponse.update).toHaveBeenCalledWith(
@@ -146,7 +184,11 @@ describe('SurveysService', () => {
               data: [
                 { questionId, optionId: optionOneId },
                 { questionId, optionId: optionTwoId },
-              ]}}})}),
+              ],
+            },
+          },
+        }),
+      }),
     );
   });
 
@@ -168,15 +210,24 @@ describe('SurveysService', () => {
                 type: SurveyQuestionType.text,
                 required: true,
                 position: 0,
-                options: []},
-            ]}}),
-        update: jest.fn()},
-      notification: { updateMany: jest.fn() }};
+                options: [],
+              },
+            ],
+          },
+        }),
+        update: jest.fn(),
+      },
+      notification: { updateMany: jest.fn() },
+    };
     const prisma = {
       $transaction: jest.fn(
         (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
-      )};
-    Object.assign(prisma, { extended: prisma, extendedTransaction: prisma.$transaction });
+      ),
+    };
+    Object.assign(prisma, {
+      extended: prisma,
+      extendedTransaction: prisma.$transaction,
+    });
     const service = new SurveysService(prisma as unknown as PrismaService);
 
     await expect(

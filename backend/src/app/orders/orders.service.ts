@@ -156,20 +156,9 @@ export class OrdersService {
         'Không tìm thấy sản phẩm hợp lệ để đặt hàng',
       );
 
-    const requestedCodes = dto.voucherSelections
-      ? [
-          ...new Set(
-            dto.voucherSelections.flatMap((s) =>
-              s.codes.map((code) => code.trim().toUpperCase()),
-            ),
-          ),
-        ]
-      : (dto.voucherCodes || []).map((code) => code.trim().toUpperCase());
+    const requestedCodes = (dto.voucherCodes || []).map((code) => code.trim().toUpperCase());
 
-    if (
-      !dto.voucherSelections &&
-      new Set(requestedCodes).size !== requestedCodes.length
-    ) {
+    if (new Set(requestedCodes).size !== requestedCodes.length) {
       throw new BadRequestException('Voucher bị trùng lặp');
     }
 
@@ -406,10 +395,7 @@ export class OrdersService {
     for (const o of result.orders) {
       this.emitOrder(o, 'order:created');
     }
-    if (
-      dto.voucherCodes?.length ||
-      dto.voucherSelections?.some((selection) => selection.codes.length)
-    ) {
+    if (dto.voucherCodes?.length) {
       this.realtime.emitToCatalog('voucher:updated', {});
     }
     this.surveysService.emitNotifications(result.surveyNotifications);

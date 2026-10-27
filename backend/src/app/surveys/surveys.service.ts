@@ -77,10 +77,11 @@ export class SurveysService {
     if (user.role !== 'admin') {
       throw new ForbiddenException('Chỉ quản trị viên mới được tạo khảo sát');
     }
-    const { questions, audienceType, triggerType, scope, status, ...fields } =
+    const { questions, audienceType, recipientIds, triggerType, scope, status, ...fields } =
       dto;
     const resolvedAudience = audienceType ?? SurveyAudienceType.all_users;
-    this.assertDeliveryRules(resolvedAudience);
+    const resolvedTrigger = triggerType ?? SurveyTriggerType.manual;
+    this.assertRecipientSelection(resolvedAudience, resolvedTrigger, recipientIds ?? []);
     const startDate = this.toDate(fields.startDate);
     const endDate = this.toDate(fields.endDate);
     this.assertDateRange(startDate, endDate);
@@ -92,7 +93,8 @@ export class SurveysService {
         startDate,
         endDate,
         audienceType: resolvedAudience,
-        triggerType,
+        recipientIds: resolvedAudience === SurveyAudienceType.selected_users ? recipientIds : [],
+        triggerType: resolvedTrigger,
         scope: scope ?? SurveyScope.platform,
         status: status ?? SurveyStatus.draft,
         adminId: user.userID,
@@ -134,7 +136,11 @@ export class SurveysService {
       );
     }
     const audienceType = dto.audienceType ?? current.audienceType;
-    this.assertDeliveryRules(audienceType);
+    const triggerType = dto.triggerType ?? current.triggerType;
+    const recipientIds = dto.recipientIds ?? (
+      audienceType === SurveyAudienceType.selected_users ? current.recipientIds : []
+    );
+    this.assertRecipientSelection(audienceType, triggerType, recipientIds);
     const startDate =
       dto.startDate === undefined
         ? current.startDate
@@ -143,6 +149,7 @@ export class SurveysService {
       dto.endDate === undefined ? current.endDate : this.toDate(dto.endDate);
     this.assertDateRange(startDate, endDate);
     const data = this.surveyUpdateData(dto);
+    if (audienceType !== SurveyAudienceType.selected_users) data.recipientIds = [];
 
     return this.prisma.extendedTransaction(async (tx) => {
       if (dto.questions) {
@@ -172,22 +179,29 @@ export class SurveysService {
     if (survey.status === status && !recipientIds?.length) return survey;
     if (status === SurveyStatus.active) {
       this.assertPublishable(survey);
+      const selectedIds = recipientIds ?? survey.recipientIds;
+      this.assertRecipientSelection(survey.audienceType, survey.triggerType, selectedIds);
+      const manualRecipientIds = survey.audienceType === SurveyAudienceType.selected_users
+        ? selectedIds
+        : undefined;
       const result = await this.prisma.extendedTransaction(async (tx) => {
         const activeSurvey = await tx.survey.update({
           where: { id },
-          data: { status: SurveyStatus.active },
+          data: {
+            status: SurveyStatus.active,
+            ...(manualRecipientIds ? { recipientIds: manualRecipientIds } : {}),
+          },
           include: {
             admin: { select: { id: true, fullName: true } },
           },
         });
-        const recipients = await this.resolveManualRecipientIds(
-          tx,
-          recipientIds,
-        );
-        const notifications =
-          activeSurvey.triggerType === SurveyTriggerType.manual
-            ? await this.createResponses(tx, activeSurvey, recipients)
-            : [];
+        const notifications = activeSurvey.triggerType === SurveyTriggerType.manual
+          ? await this.createResponses(
+              tx,
+              activeSurvey,
+              await this.resolveManualRecipientIds(tx, manualRecipientIds),
+            )
+          : [];
         return { activeSurvey, notifications };
       });
       this.emitNotifications(result.notifications);
@@ -738,6 +752,9 @@ export class SurveysService {
       },
       select: { id: true },
     });
+    if (recipientIds && clients.length !== new Set(recipientIds).size) {
+      throw new BadRequestException('Có khách hàng được chọn không còn hoạt động hoặc không tồn tại');
+    }
     return clients.map((c) => ({ clientId: c.id, orderId: null }));
   }
 
@@ -748,6 +765,25 @@ export class SurveysService {
       audienceType !== SurveyAudienceType.all_system
     ) {
       throw new BadRequestException('Nhóm người nhận không hợp lệ');
+    }
+  }
+
+  private assertRecipientSelection(
+    audienceType: SurveyAudienceType,
+    triggerType: SurveyTriggerType,
+    recipientIds: string[],
+  ) {
+    this.assertDeliveryRules(audienceType);
+    if (audienceType !== SurveyAudienceType.selected_users && recipientIds.length) {
+      throw new BadRequestException('Danh sách khách hàng chỉ dùng cho khảo sát chọn khách hàng cụ thể');
+    }
+    if (audienceType === SurveyAudienceType.selected_users) {
+      if (triggerType !== SurveyTriggerType.manual) {
+        throw new BadRequestException('Khảo sát chọn khách hàng chỉ hỗ trợ gửi thủ công');
+      }
+      if (!recipientIds.length) {
+        throw new BadRequestException('Vui lòng chọn ít nhất một khách hàng nhận khảo sát');
+      }
     }
   }
 
@@ -1016,6 +1052,7 @@ export class SurveysService {
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
     if (dto.audienceType !== undefined) data.audienceType = dto.audienceType;
+    if (dto.recipientIds !== undefined) data.recipientIds = dto.recipientIds;
     if (dto.triggerType !== undefined) data.triggerType = dto.triggerType;
     if (dto.startDate !== undefined)
       data.startDate = this.toDate(dto.startDate);

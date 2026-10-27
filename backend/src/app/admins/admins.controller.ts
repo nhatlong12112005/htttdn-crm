@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 
-import { Roles } from '../../common/guards/access-control/roles.decorator';
+import { AdminRoles, Roles } from '../../common/guards/access-control/roles.decorator';
 
 import { User } from '../../common/decorators/user.decorator';
 
@@ -33,6 +33,7 @@ export class AdminsController {
    */
   @Get()
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   getAdmins(@Query() query: GetAdminsPaginationDto) {
     return this.adminsService.getAdmins(query);
   }
@@ -43,6 +44,7 @@ export class AdminsController {
    */
   @Get('profile')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   getProfile(
     @User()
     admin: AdminInfo,
@@ -58,6 +60,7 @@ export class AdminsController {
    */
   @Patch('profile')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   updateProfile(
     @User()
     admin: AdminInfo,
@@ -80,6 +83,7 @@ export class AdminsController {
    */
   @Get(':id')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   getAdmin(
     @Param('id', ParseUUIDPipe)
     id: string,
@@ -94,6 +98,7 @@ export class AdminsController {
    */
   @Patch(':id')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   updateAdmin(
     @Param('id', ParseUUIDPipe)
     id: string,
@@ -119,6 +124,7 @@ export class AdminsController {
    */
   @Delete(':id')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   deleteAdmin(
     @Param('id', ParseUUIDPipe)
     id: string,

@@ -48,12 +48,12 @@ export class VouchersService {
     const offers = await this.prisma.extended.voucher.findMany({
       where: {
         deletedAt: null,
+        scope: VoucherScope.platform,
         status: 'active',
         startDate: { lte: now },
         endDate: { gte: now },
         OR: [
           {
-            scope: 'platform',
             details: {
               none: { productId: { not: null }, orderId: null },
             },
@@ -139,6 +139,7 @@ export class VouchersService {
     const list = await this.prisma.extended.voucher.findMany({
       where: {
         adminId: userId,
+        scope: VoucherScope.platform,
         deletedAt: null,
       },
       include: this.detailsInclude(),
@@ -149,7 +150,7 @@ export class VouchersService {
 
   async getAll() {
     const list = await this.prisma.extended.voucher.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, scope: VoucherScope.platform },
       include: {
         ...this.detailsInclude(),
         admin: { select: { id: true, fullName: true } },
@@ -164,6 +165,7 @@ export class VouchersService {
     const vouchers = await this.prisma.extended.voucher.findMany({
       where: {
         deletedAt: null,
+        scope: VoucherScope.platform,
         status: VoucherStatus.active,
         startDate: { lte: now },
         endDate: { gte: now },
@@ -181,7 +183,7 @@ export class VouchersService {
 
   async getById(id: string, user: UserInfo) {
     const voucher = await this.prisma.extended.voucher.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, scope: VoucherScope.platform },
       include: this.detailsInclude(),
     });
     if (!voucher) throw new NotFoundException('Voucher không tồn tại');
@@ -321,6 +323,9 @@ export class VouchersService {
     if (normalizedCodes.length !== codes.length) {
       throw new BadRequestException('Voucher bị trùng lặp');
     }
+    if (normalizedCodes.length > 1) {
+      throw new BadRequestException('Mỗi đơn chỉ được dùng một voucher MIVA');
+    }
 
     const variants = await db.productVariant.findMany({
       where: {
@@ -371,14 +376,9 @@ export class VouchersService {
     }
 
     const now = new Date();
-    const scopes = new Set<VoucherScope>();
-    const ordered = [...vouchers].sort((left, right) =>
-      left.scope === right.scope
-        ? 0
-        : left.scope === VoucherScope.vendor
-          ? -1
-          : 1,
-    );
+    if (vouchers.some((voucher) => voucher.scope !== VoucherScope.platform)) {
+      throw new BadRequestException('Voucher shop không còn được áp dụng');
+    }
     const subtotal = items.reduce(
       (sum, item) => sum.plus(item.amount),
       new Prisma.Decimal(0),
@@ -386,12 +386,7 @@ export class VouchersService {
     let remaining = subtotal;
     const applications: VoucherApplication[] = [];
 
-    for (const voucher of ordered) {
-      if (scopes.has(voucher.scope)) {
-        throw new BadRequestException('Mỗi loại chỉ được dùng một voucher');
-      }
-      scopes.add(voucher.scope);
-
+    for (const voucher of vouchers) {
       if (
         voucher.status !== VoucherStatus.active ||
         voucher.startDate > now ||

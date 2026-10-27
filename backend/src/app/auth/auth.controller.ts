@@ -10,6 +10,7 @@ import { TokenKeys } from './consts/jwt.const';
 
 import { User } from '../../common/decorators/user.decorator';
 import type { UserInfo } from '../../common/decorators/user.decorator';
+import { AdminRoles } from '../../common/guards/access-control/roles.decorator';
 import {
   COOKIE_CONFIG_DEFAULT,
   CookiesToken,
@@ -79,7 +80,7 @@ export class AuthController {
 
     const refreshToken = (request.cookies as Record<string, string>)?.[refreshKey];
 
-    const result = await this.authService.refreshToken(refreshToken);
+    const result = await this.authService.refreshToken(refreshToken, appRole);
 
     response.cookie(accessKey, result.data.accessToken, {
       ...COOKIE_CONFIG_DEFAULT,
@@ -121,6 +122,7 @@ export class AuthController {
    * Lấy thông tin tài khoản đang đăng nhập.
    */
   @Get('me')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   me(@User() user: UserInfo) {
     return this.authService.getMe(user);
   }

@@ -16,7 +16,7 @@ import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as fs from 'fs';
-import { Roles } from '../../common/guards/access-control/roles.decorator';
+import { AdminRoles, Roles } from '../../common/guards/access-control/roles.decorator';
 import { User, type UserInfo } from '../../common/decorators/user.decorator';
 import { UsersService } from './users.service';
 import {
@@ -33,6 +33,7 @@ export class UsersController {
 
   @Post('upload-avatar')
   @Roles('admin', 'client', 'vendor', 'employee')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   @UseInterceptors(
     AnyFilesInterceptor({
       storage: diskStorage({
@@ -83,36 +84,42 @@ export class UsersController {
 
   @Get()
   @Roles('admin')
-  getUsers(@Query() query: GetUsersPaginationDto) {
-    return this.usersService.getUsers(query);
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
+  getUsers(@Query() query: GetUsersPaginationDto, @User() user: UserInfo) {
+    return this.usersService.getUsers(query, user);
   }
 
   @Post()
   @Roles('admin')
-  createUser(@Body() data: CreateUserDto) {
-    return this.usersService.createUser(data);
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
+  createUser(@Body() data: CreateUserDto, @User() user: UserInfo) {
+    return this.usersService.createUser(data, user);
   }
 
   @Get('profile')
   @Roles('admin', 'client', 'vendor', 'employee')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   getProfile(@User() user: UserInfo) {
     return this.usersService.getUser(user.userID);
   }
 
   @Patch('profile')
   @Roles('admin', 'client', 'vendor', 'employee')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   updateProfile(@User() user: UserInfo, @Body() data: UpdateUserProfileDto) {
     return this.usersService.updateUser(user.userID, data, user);
   }
 
   @Get(':id')
   @Roles('admin')
-  getUser(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.getUser(id);
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
+  getUser(@Param('id', ParseUUIDPipe) id: string, @User() user: UserInfo) {
+    return this.usersService.getUser(id, user);
   }
 
   @Patch(':id')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   updateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: UpdateUserDto,
@@ -123,6 +130,7 @@ export class UsersController {
 
   @Patch(':id/status')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   updateUserStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateUserStatusDto,
@@ -133,6 +141,7 @@ export class UsersController {
 
   @Delete(':id')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN', 'CRM_MANAGER')
   deleteUser(
     @Param('id', ParseUUIDPipe) id: string,
     @User() user: UserInfo,

@@ -1,0 +1,2 @@
+ALTER TABLE "Survey"
+ADD COLUMN "recipientIds" UUID[] NOT NULL DEFAULT ARRAY[]::UUID[];

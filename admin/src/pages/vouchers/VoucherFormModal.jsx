@@ -31,8 +31,6 @@ export default function VoucherFormModal({ isOpen, onClose, voucherToEdit, onSav
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const isVendorVoucher = voucherToEdit?.scope === 'vendor';
-
   useEffect(() => {
     if (!isOpen) return;
     let mounted = true;
@@ -110,15 +108,13 @@ export default function VoucherFormModal({ isOpen, onClose, voucherToEdit, onSav
         endDate: dateTimestamp(formData.endDate, true, voucherToEdit?.endDate),
         status: formData.status,
       };
-      if (!isVendorVoucher) {
-        if (formData.targetMode === 'categories') {
-          if (!formData.categoryIds.length) {
-            throw new Error('Vui lòng chọn ít nhất một danh mục áp dụng.');
-          }
-          payload.categoryIds = formData.categoryIds;
-        } else if (voucherToEdit?.categoryIds?.length > 0) {
-          payload.categoryIds = [];
+      if (formData.targetMode === 'categories') {
+        if (!formData.categoryIds.length) {
+          throw new Error('Vui lòng chọn ít nhất một danh mục áp dụng.');
         }
+        payload.categoryIds = formData.categoryIds;
+      } else if (voucherToEdit?.categoryIds?.length > 0) {
+        payload.categoryIds = [];
       }
       if (payload.code.length < 3 || !payload.name) throw new Error('Mã cần ít nhất 3 ký tự và tên voucher không được để trống.');
       if (!Number.isFinite(payload.discountValue) || payload.discountValue <= 0) throw new Error('Giá trị giảm phải lớn hơn 0.');
@@ -232,11 +228,6 @@ export default function VoucherFormModal({ isOpen, onClose, voucherToEdit, onSav
             Phạm vi áp dụng sản phẩm
           </label>
 
-          {isVendorVoucher ? (
-            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
-              Voucher của Shop <span className="font-semibold">{voucherToEdit.vendor?.fullName || 'Vendor'}</span> ({voucherToEdit.details?.length || 0} sản phẩm áp dụng).
-            </div>
-          ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <button
@@ -332,7 +323,6 @@ export default function VoucherFormModal({ isOpen, onClose, voucherToEdit, onSav
                 </div>
               )}
             </>
-          )}
         </div>
 
         <p className="mt-3 text-xs text-slate-500">Khi tạo mới, voucher có hiệu lực từ đầu ngày bắt đầu đến hết ngày kết thúc theo múi giờ của bạn.</p>

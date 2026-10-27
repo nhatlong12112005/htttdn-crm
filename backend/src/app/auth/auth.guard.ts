@@ -50,6 +50,7 @@ export class AuthGuard implements CanActivate {
       phone: payload.phone,
       address: payload.address,
       role: payload.role,
+      adminRole: payload.adminRole,
     };
 
     return true;

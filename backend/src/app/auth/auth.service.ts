@@ -16,6 +16,7 @@ import {
   assertEmailAvailable,
   findAccountsByEmail,
 } from '../../common/utils/account-email/account-email.util';
+import { AdminRoleCode, resolveAdminRole } from '../../common/guards/access-control/admin-role';
 
 export type TokenPayload = {
   userID: string;
@@ -24,6 +25,7 @@ export type TokenPayload = {
   phone: string | null;
   address: string | null;
   role: 'admin' | 'client' | 'vendor' | 'employee';
+  adminRole?: AdminRoleCode;
 };
 
 @Injectable()
@@ -65,7 +67,11 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync<
         TokenPayload & { tokenType: string }
       >(token);
-      if (payload.tokenType !== tokenType || !payload.userID) {
+      if (
+        payload.tokenType !== tokenType ||
+        !payload.userID ||
+        (payload.role === 'admin' && !payload.adminRole)
+      ) {
         throw new UnauthorizedException();
       }
       return payload;
@@ -112,8 +118,9 @@ export class AuthService {
   async signIn(signInDto: SignInDto, appRole?: string) {
     const { email, password } = signInDto;
 
-    const preferred = ACCOUNT_ROLES.includes(appRole as AccountRole)
-      ? (appRole as AccountRole)
+    const normalizedRole = appRole === 'crm' ? 'admin' : appRole;
+    const preferred = ACCOUNT_ROLES.includes(normalizedRole as AccountRole)
+      ? (normalizedRole as AccountRole)
       : undefined;
     const candidates = (await findAccountsByEmail(this.prisma.extended, email))
       .filter(({ user }) => user.status === 'active' && !user.deletedAt)
@@ -133,6 +140,8 @@ export class AuthService {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
 
+    this.assertPortalAccess(role, user, appRole);
+
     const tokens = await this.createToken({
       userID: user.id,
       userEmail: user.email,
@@ -140,6 +149,7 @@ export class AuthService {
       phone: user.phone || null,
       address: user.address || null,
       role: role,
+      ...(role === 'admin' ? { adminRole: resolveAdminRole(user) ?? undefined } : {}),
     });
 
     return {
@@ -147,7 +157,21 @@ export class AuthService {
     };
   }
 
-  async refreshToken(refreshToken?: string) {
+  private assertPortalAccess(role: AccountRole, user: any, appRole?: string) {
+    if (role === 'admin' && !resolveAdminRole(user)) {
+      throw new UnauthorizedException('Tài khoản chưa được phân quyền hợp lệ');
+    }
+    if (!appRole) return;
+    if (appRole === 'client' && role === 'client') return;
+    if (role === 'admin') {
+      const adminRole = resolveAdminRole(user);
+      if (appRole === 'admin' && adminRole === 'SUPER_ADMIN') return;
+      if (appRole === 'crm' && adminRole === 'CRM_MANAGER') return;
+    }
+    throw new UnauthorizedException('Tài khoản không có quyền đăng nhập cổng này');
+  }
+
+  async refreshToken(refreshToken?: string, appRole?: string) {
     if (!refreshToken) {
       throw new UnauthorizedException('Không tìm thấy refresh token');
     }
@@ -164,6 +188,12 @@ export class AuthService {
       throw new UnauthorizedException('Tài khoản không còn hoạt động');
     }
 
+    this.assertPortalAccess(payload.role as AccountRole, user, appRole);
+    const currentAdminRole = payload.role === 'admin' ? resolveAdminRole(user) : null;
+    if (payload.role === 'admin' && payload.adminRole !== currentAdminRole) {
+      throw new UnauthorizedException('Quyền tài khoản đã thay đổi, vui lòng đăng nhập lại');
+    }
+
     const tokens = await this.createToken({
       userID: user.id,
       userEmail: user.email,
@@ -171,6 +201,7 @@ export class AuthService {
       phone: user.phone || null,
       address: null,
       role: payload.role,
+      ...(currentAdminRole ? { adminRole: currentAdminRole } : {}),
     });
 
     return {
@@ -182,7 +213,7 @@ export class AuthService {
     if (userInfo.role === 'admin') {
       const admin = await this.adminsService.getAdmin({ id: userInfo.userID }).catch(() => null);
       if (admin) {
-        return { data: { ...userInfo, ...admin } };
+        return { data: { ...userInfo, ...admin, roleCode: resolveAdminRole(admin) } };
       }
     }
     if (userInfo.role === 'client') {

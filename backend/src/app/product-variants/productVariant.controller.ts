@@ -20,7 +20,7 @@ import type { UserInfo } from 'src/common/decorators/user.decorator';
 export class ProductVariantController {
   constructor(private readonly productVariantService: ProductVariantService) {}
   @Post()
-  @Roles('vendor')
+  @Roles('admin')
   createProductVariant(
     @Body() createProductVariantDto: CreateProductVariantDto,
     @CurrentUser() user: UserInfo,
@@ -41,7 +41,7 @@ export class ProductVariantController {
   }
 
   @Patch(':id')
-  @Roles('vendor')
+  @Roles('admin')
   updateProductVariant(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateProductVariantDto,
@@ -55,7 +55,7 @@ export class ProductVariantController {
   }
 
   @Delete(':id')
-  @Roles('vendor')
+  @Roles('admin')
   deleteProductVariant(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserInfo,

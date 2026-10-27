@@ -4,6 +4,8 @@
  */
 
 export const CLIENT_TOPICS = [
+  'Thăm dò ra mắt Bộ sưu tập Thời trang mới',
+  'Độ hài lòng về Chất liệu, Form dáng & Bảng Size',
   'Trải nghiệm mua sắm trên MIVA',
   'Mức độ hài lòng',
   'Quy trình thanh toán',
@@ -27,6 +29,118 @@ export const VENDOR_TOPICS = [
 ];
 
 export const CLIENT_TEMPLATES = [
+  {
+    topic: 'Thăm dò ra mắt Bộ sưu tập Thời trang mới',
+    title: 'Khảo sát thăm dò nhu cầu trước khi ra mắt Bộ sưu tập Thời trang Thu - Đông mới',
+    description: 'Nhằm chuẩn bị ra mắt dòng sản phẩm quần áo mới phù hợp nhất với gu thẩm mỹ và nhu cầu của bạn, MIVA Fashion rất mong nhận được ý kiến đóng góp từ Quý khách hàng.',
+    imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&auto=format&fit=crop&q=80',
+    scope: 'platform',
+    audienceType: 'all_users',
+    triggerType: 'manual',
+    questions: [
+      {
+        id: '1',
+        question: 'Bạn đánh giá mức độ yêu thích đối với các mẫu thiết kế quần áo hiện tại của MIVA?',
+        type: 'rating',
+        required: true,
+        options: []
+      },
+      {
+        id: '2',
+        question: 'Trong đợt ra mắt sản phẩm sắp tới, dòng trang phục nào bạn mong chờ nhất?',
+        type: 'multiple_choice',
+        required: true,
+        options: [
+          'Áo thun / Áo Polo Basic mặc hàng ngày',
+          'Áo khoác Hoodie / Sweater / Jacket chống nắng',
+          'Trang phục công sở thanh lịch (Áo sơ mi, Quần âu, Chân váy)',
+          'Đồ thể thao năng động (Gym, Running, Sportswear)',
+          'Váy đầm dự tiệc / Dạo phố cuối tuần'
+        ]
+      },
+      {
+        id: '3',
+        question: 'Chất liệu vải nào bạn ưu tiên lựa chọn nhất khi mua quần áo?',
+        type: 'single_choice',
+        required: true,
+        options: [
+          'Cotton 100% thấm hút mồ hôi, thoáng mát',
+          'Vải Kaki / Jeans đứng form, bền đẹp',
+          'Vải thun lạnh / Spandex co giãn 4 chiều',
+          'Vải Linen / Đũi tự nhiên, nhẹ nhàng'
+        ]
+      },
+      {
+        id: '4',
+        question: 'Mức giá bạn sẵn sàng chi trả cho một sản phẩm quần áo thiết kế mới là bao nhiêu?',
+        type: 'single_choice',
+        required: true,
+        options: [
+          'Dưới 200.000đ',
+          'Từ 200.000đ – 399.000đ',
+          'Từ 400.000đ – 699.000đ',
+          'Trên 700.000đ (Dòng cao cấp / Limited)'
+        ]
+      },
+      {
+        id: '5',
+        question: 'Bạn mong muốn MIVA bổ sung thêm tông màu, họa tiết hoặc kích cỡ (Size) nào trong bộ sưu tập mới?',
+        type: 'text',
+        required: false,
+        options: []
+      }
+    ]
+  },
+  {
+    topic: 'Độ hài lòng về Chất liệu, Form dáng & Bảng Size',
+    title: 'Khảo sát độ hài lòng của khách hàng về chất lượng quần áo & dịch vụ MIVA',
+    description: 'Đánh giá của bạn về chất vải, đường may, độ chuẩn xác của bảng size và chính sách đổi trả giúp MIVA nâng cao chất lượng sản phẩm.',
+    imageUrl: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=800&auto=format&fit=crop&q=80',
+    scope: 'platform',
+    audienceType: 'all_users',
+    triggerType: 'manual',
+    questions: [
+      {
+        id: '1',
+        question: 'Mức độ hài lòng tổng thể của bạn về chất lượng quần áo đã mua tại MIVA?',
+        type: 'rating',
+        required: true,
+        options: []
+      },
+      {
+        id: '2',
+        question: 'Kích cỡ (Size S, M, L, XL...) trên website khi nhận hàng thực tế có vừa vặn với bạn không?',
+        type: 'single_choice',
+        required: true,
+        options: [
+          'Rất chuẩn form, mặc vừa vặn ngay lần đầu',
+          'Khá vừa vặn, chênh lệch không đáng kể',
+          'Hơi rộng hoặc hơi chật so với bảng quy đổi size',
+          'Không vừa, phải liên hệ hỗ trợ đổi size'
+        ]
+      },
+      {
+        id: '3',
+        question: 'Những điểm nào ở sản phẩm quần áo MIVA khiến bạn hài lòng nhất?',
+        type: 'multiple_choice',
+        required: false,
+        options: [
+          'Chất vải mềm mịn, không xù lông hay phai màu sau khi giặt',
+          'Đường may chắc chắn, tỉ mỉ, không dư chỉ thừa',
+          'Màu sắc và kiểu dáng thực tế giống hệt ảnh chụp trên web',
+          'Đóng gói hộp quần áo lịch sự, thơm tho',
+          'Hỗ trợ đổi trả size nhanh chóng trong 7 ngày'
+        ]
+      },
+      {
+        id: '4',
+        question: 'Chia sẻ thêm góp ý của bạn về chất lượng sản phẩm hoặc dịch vụ chăm sóc khách hàng của shop:',
+        type: 'text',
+        required: false,
+        options: []
+      }
+    ]
+  },
   {
     topic: 'Trải nghiệm mua sắm trên MIVA',
     title: 'Khảo sát trải nghiệm mua sắm và giao diện sàn MIVA',

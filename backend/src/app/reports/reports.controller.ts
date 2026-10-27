@@ -3,7 +3,7 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import { User } from 'src/common/decorators/user.decorator';
 import type { UserInfo } from 'src/common/decorators/user.decorator';
-import { Roles } from 'src/common/guards/access-control/roles.decorator';
+import { AdminRoles, Roles } from 'src/common/guards/access-control/roles.decorator';
 import { CustomerReportQueryDto } from './dto/customer-report.dto';
 import { AnalyticsReportQueryDto } from './dto/analytics-report.dto';
 import { UpdateFinanceConfigDto } from './dto/finance-config.dto';
@@ -15,6 +15,7 @@ export class ReportsController {
 
   @Get('admin/reports/finance-config')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   getFinanceConfig() {
     return {
       current: this.reportsService.getCurrentFinanceConfig(),
@@ -24,6 +25,7 @@ export class ReportsController {
 
   @Post('admin/reports/finance-config')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   updateFinanceConfig(@Body() dto: UpdateFinanceConfigDto) {
     return this.reportsService.saveNewFinanceConfig({
       ...dto,
@@ -33,6 +35,7 @@ export class ReportsController {
 
   @Get('admin/reports/analytics')
   @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
   adminAnalytics(
     @Query() query: AnalyticsReportQueryDto,
   ) {

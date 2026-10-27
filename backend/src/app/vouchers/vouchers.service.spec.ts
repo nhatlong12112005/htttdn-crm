@@ -71,7 +71,7 @@ describe('VouchersService', () => {
     details:
       scope === VoucherScope.vendor ? [{ productId, orderId: null }] : []});
 
-  it('applies vendor first, caps it to eligible products, then applies platform voucher', async () => {
+  it('applies one MIVA voucher to the order', async () => {
     const db = {
       productVariant: {
         findMany: jest
@@ -95,18 +95,11 @@ describe('VouchersService', () => {
               DiscountType.percentage,
               10,
             ),
-            voucher(
-              '88888888-8888-4888-8888-888888888888',
-              'VENDOR30',
-              VoucherScope.vendor,
-              DiscountType.fixed_amount,
-              30,
-            ),
           ])},
       voucherDetail: { count: jest.fn().mockResolvedValue(0) }};
     const service = new VouchersService({} as PrismaService);
     const result = await service.calculate(
-      ['PLATFORM10', 'VENDOR30'],
+      ['PLATFORM10'],
       '99999999-9999-4999-8999-999999999999',
       [
         {
@@ -119,13 +112,23 @@ describe('VouchersService', () => {
       db as never,
     );
 
-    expect(result.applications.map((item) => item.scope)).toEqual([
-      VoucherScope.vendor,
-      VoucherScope.platform,
-    ]);
-    expect(result.applications[0].discountAmount.toString()).toBe('20');
-    expect(result.applications[1].discountAmount.toString()).toBe('8');
-    expect(result.totalAmount.toString()).toBe('72');
+    expect(result.applications.map((item) => item.scope)).toEqual([VoucherScope.platform]);
+    expect(result.applications[0].discountAmount.toString()).toBe('10');
+    expect(result.totalAmount.toString()).toBe('90');
+  });
+
+  it('rejects a legacy shop voucher', async () => {
+    const variantId = '55555555-5555-4555-8555-555555555555';
+    const db = {
+      productVariant: { findMany: jest.fn().mockResolvedValue([variant(variantId, 100, productId)]) },
+      voucher: { findMany: jest.fn().mockResolvedValue([
+        voucher('88888888-8888-4888-8888-888888888888', 'VENDOR30', VoucherScope.vendor, DiscountType.fixed_amount, 30),
+      ]) },
+      voucherDetail: { count: jest.fn() },
+    };
+    const service = new VouchersService({} as PrismaService);
+    await expect(service.calculate(['VENDOR30'], vendorId, [{ productVariantId: variantId, quantity: 1 }], db as never))
+      .rejects.toThrow('Voucher shop không còn được áp dụng');
   });
 
   it.each(['perUserLimit', 'quantity'] as const)('accounts for planned %s usage across multiple shops before placing an order', async limit => {
