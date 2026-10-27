@@ -15,7 +15,6 @@ import About from '../pages/About/About';
 import Contact from '../pages/Contact/Contact';
 import PaymentDemo from '../pages/Cart/PaymentDemo';
 import Favorites from '../pages/Account/Favorites';
-import VendorShop from '../pages/Shop/VendorShop';
 import SurveyPage from '../pages/Survey/SurveyPage';
 
 export default function AppRoutes() {
@@ -25,16 +24,15 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
       </Route>
-      
+
       <Route element={<UserLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/products" element={<ProductSearch />} />
         <Route path="/products/:id" element={<ProductDetail />} />
-        <Route path="/shop/:id" element={<VendorShop />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
-        
+
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/checkout" element={<Checkout />} />

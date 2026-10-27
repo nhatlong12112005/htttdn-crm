@@ -9,7 +9,7 @@ export const authApi = {
   getProfile: () => axiosClient.get('/admins/profile'),
 };
 
-// ==================== USERS ====================
+// ==================== USERS & ACCOUNTS ====================
 
 export const usersApi = {
   getUsers: (params = {}) => axiosClient.get('/users', { params }),
@@ -26,17 +26,6 @@ export const usersApi = {
     });
     return res?.data?.data?.url || res?.data?.url || res?.url;
   },
-};
-
-// ==================== VENDORS ====================
-
-export const vendorsApi = {
-  getVendors: (params = {}) => axiosClient.get('/vendors', { params }),
-  getVendor: (id) => axiosClient.get(`/vendors/${id}`),
-  updateVendor: (id, data) => axiosClient.patch(`/vendors/${id}`, data),
-  getRegistrations: (params = {}) => axiosClient.get('/vendors/admin/registrations', { params }),
-  approveRegistration: (id, data = {}) => axiosClient.patch(`/vendors/admin/registrations/${id}/approve`, data),
-  rejectRegistration: (id, data = {}) => axiosClient.patch(`/vendors/admin/registrations/${id}/reject`, data),
 };
 
 // ==================== CATEGORIES ====================
@@ -67,10 +56,11 @@ export const vouchersApi = {
   deleteVoucher: (id) => axiosClient.delete(`/vouchers/${id}`),
 };
 
-// ==================== REVIEWS ====================
+// ==================== REVIEWS & CUSTOMER FEEDBACK ====================
 
 export const reviewsApi = {
   getReviews: (params = {}) => axiosClient.get('/reviews/admin/all', { params }),
+  replyReview: (id, adminReply) => axiosClient.patch(`/reviews/admin/${id}/reply`, { adminReply }),
   deleteReview: (id) => axiosClient.delete(`/reviews/admin/${id}`),
 };
 
@@ -84,42 +74,13 @@ export const reportsApi = {
   updateFinanceConfig: (data) => axiosClient.post('/admin/reports/finance-config', data),
 };
 
-// ==================== EMPLOYEES ====================
+// ==================== EMPLOYEES (compatibility fallback) ====================
 
 export const employeesApi = {
-  getEmployees: (params = {}) => axiosClient.get('/employees', { params }),
-  getDepartments: () => axiosClient.get('/employees/departments'),
-  getEmployee: (id) => axiosClient.get(`/employees/${id}`),
-  createEmployee: (data) => axiosClient.post('/employees', data),
-  updateEmployee: (id, data) => axiosClient.patch(`/employees/${id}`, data),
-  updateStatus: (id, status) => axiosClient.patch(`/employees/${id}/status`, { status }),
-  getSalaryHistory: (id) => axiosClient.get(`/employees/${id}/salary-history`),
-  updateSchedule: (id, data) => axiosClient.patch(`/employees/${id}/schedule`, data),
-  sendNotification: (data) => axiosClient.post('/employees/notifications/send', data),
+  getEmployees: (params = {}) => axiosClient.get('/users', { params: { ...params, role: 'admin' } }),
 };
 
-// ==================== SHIPPING ====================
-
-export const shippingApi = {
-  getShipments: (params = {}) => axiosClient.get('/shipping/shipments', { params }),
-  getShipment: (id) => axiosClient.get(`/shipping/shipments/${id}`),
-  updateStatus: (id, data) => axiosClient.patch(`/shipping/shipments/${id}/status`, data),
-  assignCarrier: (id, data) => axiosClient.patch(`/shipping/shipments/${id}/assign`, data),
-  randomAssignCarrier: (id) => axiosClient.post(`/shipping/shipments/${id}/random-assign`),
-  randomAssignAll: () => axiosClient.post('/shipping/shipments/random-assign-all'),
-};
-
-// ==================== PAYROLL ====================
-
-export const payrollApi = {
-  getPayrolls: (params = {}) => axiosClient.get('/payroll', { params }),
-  calculate: (data) => axiosClient.post('/payroll/calculate', data),
-  updatePayroll: (id, data) => axiosClient.patch(`/payroll/${id}`, data),
-  recordAttendance: (data) => axiosClient.post('/payroll/attendance', data),
-  getAttendance: (params = {}) => axiosClient.get('/payroll/attendance', { params }),
-};
-
-// ==================== SURVEYS ====================
+// ==================== SURVEYS (CRM) ====================
 
 export const surveysApi = {
   getSurveys: (params = {}) => axiosClient.get('/surveys/admin/all', { params }),
@@ -128,7 +89,11 @@ export const surveysApi = {
   createSurvey: (data) => axiosClient.post('/surveys', data),
   getSurveyDetail: (id) => axiosClient.get(`/surveys/${id}/manage`),
   updateSurvey: (id, data) => axiosClient.patch(`/surveys/${id}`, data),
-  changeStatus: (id, status) => axiosClient.patch(`/surveys/${id}/status`, { status }),
+  changeStatus: (id, status, recipientIds) =>
+    axiosClient.patch(`/surveys/${id}/status`, {
+      status,
+      ...(recipientIds?.length ? { recipientIds } : {}),
+    }),
   getResults: (id, params = {}) => axiosClient.get(`/surveys/${id}/results`, { params }),
   deleteSurvey: (id) => axiosClient.delete(`/surveys/${id}`),
 };

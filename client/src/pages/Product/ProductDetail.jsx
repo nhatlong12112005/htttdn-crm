@@ -10,7 +10,6 @@ import Loading from '../../components/common/Loading/Loading';
 import EmptyState from '../../components/common/EmptyState/EmptyState';
 import ProductCard from '../../components/product/ProductCard/ProductCard';
 import ProductCardSkeleton from '../../components/product/ProductCard/ProductCardSkeleton';
-import { vendorService } from '../../services/vendorService';
 import { reviewService } from '../../services/reviewService';
 import { bestVoucherPrice } from '../../utils/voucherPrice';
 
@@ -28,25 +27,16 @@ export default function ProductDetail() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [mainImgError, setMainImgError] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [vendorProfile, setVendorProfile] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [selectedStarFilter, setSelectedStarFilter] = useState(0);
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackContent, setFeedbackContent] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
-  // Fetch vendor public statistics
-  useEffect(() => {
-    if (product?.vendor?.id) {
-      vendorService.getPublicProfile(product.vendor.id)
-        .then(res => setVendorProfile(res))
-        .catch(console.error);
-    }
-  }, [product?.vendor?.id]);
-
-  // Fetch product reviews
-  useEffect(() => {
+  const loadProductReviews = () => {
     if (!product?.id) return;
     setReviewsLoading(true);
-    setSelectedStarFilter(0);
     reviewService.getByProduct(product.id)
       .then((res) => {
         const list = Array.isArray(res) ? res : (res?.data || []);
@@ -54,7 +44,43 @@ export default function ProductDetail() {
       })
       .catch(console.error)
       .finally(() => setReviewsLoading(false));
+  };
+
+  // Fetch product reviews
+  useEffect(() => {
+    if (!product?.id) return;
+    setSelectedStarFilter(0);
+    loadProductReviews();
   }, [product?.id]);
+
+  const handleSubmitProductFeedback = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      toast.info('Vui lòng đăng nhập tài khoản khách hàng để gửi phản hồi');
+      navigate('/login');
+      return;
+    }
+    if (!feedbackContent.trim()) {
+      toast.warning('Vui lòng nhập nội dung phản hồi về sản phẩm');
+      return;
+    }
+    try {
+      setSubmittingFeedback(true);
+      await reviewService.createReview({
+        productId: product.id,
+        rating: feedbackRating,
+        content: feedbackContent.trim(),
+      });
+      toast.success('Đã gửi phản hồi sản phẩm thành công! Cảm ơn ý kiến của bạn.');
+      setFeedbackContent('');
+      setFeedbackRating(5);
+      loadProductReviews();
+    } catch (err) {
+      toast.error(err?.message || 'Không thể gửi phản hồi lúc này');
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
 
   // Derived image state from selected color
   const images = selectedColor?.imageUrls || [];
@@ -460,78 +486,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* ── Vendor / Seller Card (Shopee Style) ── */}
-      {product?.vendor && (
-        <div className="mt-8 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl p-6 sm:p-7 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            
-            {/* Left: Avatar + Store Name + View Shop Button */}
-            <div className="flex items-center gap-4 sm:gap-5 min-w-[260px]">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-primary/20 bg-gray-100 dark:bg-dark-surface shadow-sm flex items-center justify-center shrink-0">
-                {product.vendor.avatarUrl ? (
-                  <img 
-                    src={product.vendor.avatarUrl} 
-                    alt={product.vendor.storeName || product.vendor.fullName} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=150&auto=format&fit=crop&q=80';
-                    }}
-                  />
-                ) : (
-                  <Store className="w-8 h-8 text-primary" />
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="font-bold text-base sm:text-lg text-light-text dark:text-dark-text tracking-tight">
-                  {product.vendor.storeName || product.vendor.fullName || 'Cửa hàng đối tác'}
-                </h3>
-
-                <div>
-                  <Link
-                    to={`/shop/${product.vendor.id}`}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:bg-light-surface dark:hover:bg-dark-surface text-xs font-semibold transition-colors"
-                  >
-                    <Store className="w-3.5 h-3.5 text-primary" />
-                    Xem Shop
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Divider */}
-            <div className="hidden lg:block w-[1px] h-16 bg-light-border dark:bg-dark-border" />
-
-            {/* Right: Stats Grid */}
-            <div className="grid grid-cols-3 gap-y-3.5 gap-x-6 sm:gap-x-8 text-xs text-light-muted dark:text-dark-muted flex-1 lg:max-w-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
-                <span>Đánh Giá</span>
-                <span className="font-semibold text-red-500 dark:text-red-400">
-                  {vendorProfile?.stats?.rating || 5.0} ★ ({vendorProfile?.stats?.reviewCount || 0})
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
-                <span>Sản Phẩm</span>
-                <span className="font-semibold text-red-500 dark:text-red-400">
-                  {vendorProfile?.stats?.totalProducts || 0}
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
-                <span>Tham Gia</span>
-                <span className="font-semibold text-red-500 dark:text-red-400">
-                  {vendorProfile?.stats?.joinedText || 'Gần đây'}
-                </span>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ── Product Reviews Section ── */}
+      {/* ── Product Reviews & Customer Feedback Section (CRM 4.3) ── */}
       <section
         id="product-reviews-section"
         className="mt-8 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl p-6 sm:p-8 shadow-sm"
@@ -539,12 +494,71 @@ export default function ProductDetail() {
         <div className="flex items-center gap-2.5 mb-6">
           <MessageSquare className="w-6 h-6 text-primary" />
           <h2 className="text-xl sm:text-2xl font-bold text-light-text dark:text-dark-text">
-            Đánh Giá Sản Phẩm
+            Phản Hồi & Đánh Giá Sản Phẩm
           </h2>
           <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
             {totalReviews}
           </span>
         </div>
+
+        {/* Direct Customer Feedback Form (CRM 4.3) */}
+        <form
+          onSubmit={handleSubmitProductFeedback}
+          className="mb-8 p-5 rounded-2xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-light-text dark:text-dark-text">
+                Gửi phản hồi của bạn về sản phẩm
+              </h3>
+              <p className="text-xs text-light-muted dark:text-dark-muted">
+                Ý kiến của bạn sẽ được bộ phận Quản lý Khách hàng (CRM) tiếp nhận và phản hồi.
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setFeedbackRating(star)}
+                  className="p-1 focus:outline-none transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={`w-6 h-6 ${
+                      star <= feedbackRating
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'text-gray-300 dark:text-gray-600'
+                    }`}
+                  />
+                </button>
+              ))}
+              <span className="ml-2 text-xs font-bold text-amber-500">
+                {feedbackRating}/5 sao
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <textarea
+              rows={2}
+              value={feedbackContent}
+              onChange={(e) => setFeedbackContent(e.target.value)}
+              placeholder={
+                isAuthenticated
+                  ? 'Chia sẻ cảm nhận hoặc câu hỏi, góp ý của bạn về chất lượng, mẫu mã sản phẩm...'
+                  : 'Vui lòng đăng nhập tài khoản khách hàng để gửi phản hồi về sản phẩm...'
+              }
+              className="flex-1 rounded-xl border border-light-border dark:border-dark-border bg-white dark:bg-dark-card px-4 py-2.5 text-sm text-light-text dark:text-dark-text focus:outline-none focus:border-primary resize-none"
+            />
+            <button
+              type="submit"
+              disabled={submittingFeedback}
+              className="px-6 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold text-sm rounded-xl shadow-sm transition-all disabled:opacity-50 shrink-0 self-end sm:self-stretch"
+            >
+              {submittingFeedback ? 'Đang gửi...' : 'Gửi phản hồi'}
+            </button>
+          </div>
+        </form>
 
         {/* Rating Overview & Filter Bar */}
         <div className="flex flex-col md:flex-row md:items-center gap-6 p-5 sm:p-6 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 mb-6">
@@ -682,6 +696,18 @@ export default function ProductDetail() {
                     <p className="mt-2.5 text-sm text-light-text dark:text-dark-text leading-relaxed whitespace-pre-line">
                       {rev.content || 'Sản phẩm chất lượng tốt, đóng gói cẩn thận.'}
                     </p>
+
+                    {rev.adminReply && (
+                      <div className="mt-3 p-3.5 rounded-xl bg-primary/5 border border-primary/20 text-xs space-y-1">
+                        <div className="font-bold text-primary flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4" />
+                          Phản hồi từ Quản lý Chăm sóc Khách hàng (CRM):
+                        </div>
+                        <p className="text-light-text dark:text-dark-text leading-relaxed">
+                          {rev.adminReply}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

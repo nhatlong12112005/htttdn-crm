@@ -1,8 +1,13 @@
 import { apiClient } from './apiClient';
 
 export const reviewService = {
-  createReview: async ({ orderDetailId, rating, content }) => {
-    return await apiClient.post('/reviews', { orderDetailId, rating, content });
+  createReview: async ({ productId, orderDetailId, rating, content }) => {
+    return await apiClient.post('/reviews', {
+      ...(productId ? { productId } : {}),
+      ...(orderDetailId ? { orderDetailId } : {}),
+      rating,
+      content,
+    });
   },
   getByProduct: async (productId) => {
     return await apiClient.get(`/reviews/product/${productId}`);

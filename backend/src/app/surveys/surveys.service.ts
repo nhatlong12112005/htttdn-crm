@@ -193,10 +193,15 @@ export class SurveysService {
     });
   }
 
-  async changeStatus(id: string, status: SurveyStatus, user: UserInfo) {
+  async changeStatus(
+    id: string,
+    status: SurveyStatus,
+    user: UserInfo,
+    recipientIds?: string[],
+  ) {
     const survey = await this.getSurveyForManagement(id);
     this.assertOwnerOrAdmin(survey, user);
-    if (survey.status === status) return survey;
+    if (survey.status === status && !recipientIds?.length) return survey;
     if (status === SurveyStatus.active) {
       this.assertPublishable(survey);
       const result = await this.prisma.extendedTransaction(async (tx) => {
@@ -208,7 +213,11 @@ export class SurveysService {
             vendor: { select: { id: true, fullName: true, storeName: true } },
           },
         });
-        const recipients = await this.resolveManualRecipientIds(tx, activeSurvey);
+        const recipients = await this.resolveManualRecipientIds(
+          tx,
+          activeSurvey,
+          recipientIds,
+        );
         const notifications =
           activeSurvey.triggerType === SurveyTriggerType.manual
             ? await this.createResponses(tx, activeSurvey, recipients)
@@ -1121,6 +1130,7 @@ export class SurveysService {
   private async resolveManualRecipientIds(
     db: DatabaseClient,
     survey: any,
+    recipientIds?: string[],
   ): Promise<any[]> {
     if (survey.scope === SurveyScope.platform || survey.adminId) {
       if (survey.audienceType === SurveyAudienceType.all_vendors) {
@@ -1131,7 +1141,11 @@ export class SurveysService {
         return vendors.map((v) => ({ vendorId: v.id, clientId: null }));
       }
       const clients = await db.client.findMany({
-        where: { status: 'active', deletedAt: null },
+        where: {
+          status: 'active',
+          deletedAt: null,
+          ...(recipientIds?.length ? { id: { in: recipientIds } } : {}),
+        },
         select: { id: true },
       });
       return clients.map((c) => ({ clientId: c.id, orderId: null }));
@@ -1185,6 +1199,7 @@ export class SurveysService {
     }
     if (
       audienceType !== SurveyAudienceType.all_users &&
+      audienceType !== SurveyAudienceType.selected_users &&
       audienceType !== SurveyAudienceType.all_vendors &&
       audienceType !== SurveyAudienceType.all_system
     ) {

@@ -908,23 +908,25 @@ export class ReportsService {
     for (const f of favorites) {
       clientFavCountMap.set(f.clientId, (clientFavCountMap.get(f.clientId) || 0) + 1);
 
-      const v = f.product?.vendor;
-      if (!v) continue;
-      if (!vendorFavMap.has(v.id)) {
-        vendorFavMap.set(v.id, {
-          vendorId: v.id,
-          storeName: v.storeName || v.fullName,
-          avatarUrl: v.avatarUrl,
-          favoriteCount: 0,
-          clients: new Set<string>(),
-          topProducts: new Map<string, number>(),
-        });
+      if (f.product?.category?.name) {
+        const catName = f.product.category.name;
+        const catId = f.product.categoryId;
+        if (!vendorFavMap.has(catId)) {
+          vendorFavMap.set(catId, {
+            vendorId: catId,
+            storeName: catName,
+            avatarUrl: null,
+            favoriteCount: 0,
+            clients: new Set<string>(),
+            topProducts: new Map<string, number>(),
+          });
+        }
+        const item = vendorFavMap.get(catId);
+        item.favoriteCount++;
+        item.clients.add(f.clientId);
+        const prodCount = (item.topProducts.get(f.product.name) || 0) + 1;
+        item.topProducts.set(f.product.name, prodCount);
       }
-      const item = vendorFavMap.get(v.id);
-      item.favoriteCount++;
-      item.clients.add(f.clientId);
-      const prodCount = (item.topProducts.get(f.product.name) || 0) + 1;
-      item.topProducts.set(f.product.name, prodCount);
     }
 
     const topFavoriteVendors = Array.from(vendorFavMap.values())
@@ -984,8 +986,9 @@ export class ReportsService {
 
     for (const d of orderDetails) {
       const prod = d.productVariant?.productColor?.product;
-      const v = prod?.vendor;
-      if (!v) continue;
+      if (!prod) continue;
+      const catId = prod.categoryId;
+      const catName = prod.category?.name || 'Danh mục chung';
 
       const clientId = d.order.clientId;
       const orderSubtotal = Number(d.order.subtotalAmount || 0);
@@ -996,19 +999,19 @@ export class ReportsService {
           : 1;
       const lineTotal = Math.round(Number(d.price) * d.quantity * netRatio);
 
-      // Vendor stats
-      if (!vendorPurchaseMap.has(v.id)) {
-        vendorPurchaseMap.set(v.id, {
-          vendorId: v.id,
-          storeName: v.storeName || v.fullName,
-          avatarUrl: v.avatarUrl,
+      // Category stats
+      if (!vendorPurchaseMap.has(catId)) {
+        vendorPurchaseMap.set(catId, {
+          vendorId: catId,
+          storeName: catName,
+          avatarUrl: null,
           ordersSet: new Set<string>(),
           totalUnits: 0,
           totalRevenue: 0,
           buyers: new Set<string>(),
         });
       }
-      const vItem = vendorPurchaseMap.get(v.id);
+      const vItem = vendorPurchaseMap.get(catId);
       vItem.ordersSet.add(d.order.id);
       vItem.totalUnits += d.quantity;
       vItem.totalRevenue += lineTotal;
@@ -1025,9 +1028,8 @@ export class ReportsService {
       const cItem = clientPurchaseMap.get(clientId);
       cItem.ordersSet.add(d.order.id);
       cItem.totalSpent += lineTotal;
-      const storeName = v.storeName || v.fullName;
-      const vCount = (cItem.vendorCounts.get(storeName) || 0) + d.quantity;
-      cItem.vendorCounts.set(storeName, vCount);
+      const vCount = (cItem.vendorCounts.get(catName) || 0) + d.quantity;
+      cItem.vendorCounts.set(catName, vCount);
     }
 
     const topPurchasedVendors = Array.from(vendorPurchaseMap.values())
@@ -1054,8 +1056,8 @@ export class ReportsService {
               select: {
                 product: {
                   select: {
-                    vendorId: true,
-                    vendor: { select: { id: true, storeName: true, fullName: true, avatarUrl: true } },
+                    categoryId: true,
+                    category: { select: { id: true, name: true } },
                   },
                 },
               },
@@ -1067,19 +1069,19 @@ export class ReportsService {
 
     const vendorCartMap = new Map<string, any>();
     for (const ci of cartItems) {
-      const v = ci.productVariant?.productColor?.product?.vendor;
-      if (!v) continue;
-      if (!vendorCartMap.has(v.id)) {
-        vendorCartMap.set(v.id, {
-          vendorId: v.id,
-          storeName: v.storeName || v.fullName,
-          avatarUrl: v.avatarUrl,
+      const cat = ci.productVariant?.productColor?.product?.category;
+      if (!cat) continue;
+      if (!vendorCartMap.has(cat.id)) {
+        vendorCartMap.set(cat.id, {
+          vendorId: cat.id,
+          storeName: cat.name,
+          avatarUrl: null,
           cartCount: 0,
           totalItems: 0,
           clients: new Set<string>(),
         });
       }
-      const item = vendorCartMap.get(v.id);
+      const item = vendorCartMap.get(cat.id);
       item.cartCount++;
       item.totalItems += ci.quantity;
       if (ci.cart?.clientId) item.clients.add(ci.cart.clientId);
@@ -1097,7 +1099,7 @@ export class ReportsService {
       .sort((a, b) => b.cartCount - a.cartCount)
       .slice(0, 10);
 
-    // 5. Cross-analysis: Age groups vs Vendor Preferences
+    // 5. Cross-analysis: Age groups vs Category Preferences
     const ageGroupAnalysis = ageGroups.map((grp) => {
       const clientIds = grp.clientIds;
       const vendorFavInGroup = new Map<string, number>();
@@ -1105,15 +1107,15 @@ export class ReportsService {
       let totalSpentInGroup = 0;
 
       for (const f of favorites) {
-        if (clientIds.has(f.clientId) && f.product?.vendor) {
-          const name = f.product.vendor.storeName || f.product.vendor.fullName;
+        if (clientIds.has(f.clientId) && f.product?.category?.name) {
+          const name = f.product.category.name;
           vendorFavInGroup.set(name, (vendorFavInGroup.get(name) || 0) + 1);
         }
       }
 
       for (const d of orderDetails) {
-        if (clientIds.has(d.order.clientId) && d.productVariant?.productColor?.product?.vendor) {
-          const name = d.productVariant.productColor.product.vendor.storeName || d.productVariant.productColor.product.vendor.fullName;
+        if (clientIds.has(d.order.clientId) && d.productVariant?.productColor?.product?.category?.name) {
+          const name = d.productVariant.productColor.product.category.name;
           const orderSubtotal = Number(d.order.subtotalAmount || 0);
           const orderDiscount = Number(d.order.discountAmount || 0);
           const netRatio =

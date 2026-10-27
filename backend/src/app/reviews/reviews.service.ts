@@ -62,31 +62,70 @@ export class ReviewsService {
   }
 
   async create(clientId: string, dto: CreateReviewDto) {
-    const detail = await this.prisma.extended.orderDetail.findFirst({
-      where: {
-        id: dto.orderDetailId,
-        order: { clientId, status: OrderStatus.completed },
-      },
-      include: {
-        review: true,
-        productVariant: { include: { productColor: true } },
-      },
+    if (dto.orderDetailId) {
+      const detail = await this.prisma.extended.orderDetail.findFirst({
+        where: {
+          id: dto.orderDetailId,
+          order: { clientId, status: OrderStatus.completed },
+        },
+        include: {
+          review: true,
+          productVariant: { include: { productColor: true } },
+        },
+      });
+      if (!detail)
+        throw new ForbiddenException(
+          'Chỉ được đánh giá sản phẩm trong đơn đã hoàn thành',
+        );
+      if (detail.review)
+        throw new ConflictException('Sản phẩm trong đơn này đã được đánh giá');
+      return this.prisma.extended.review.create({
+        data: {
+          clientId,
+          orderDetailId: detail.id,
+          productId: detail.productVariant.productColor.productId,
+          rating: dto.rating,
+          content: dto.content,
+        },
+        include: { client: { select: { id: true, fullName: true, avatarUrl: true } } },
+      });
+    }
+
+    const product = await this.prisma.extended.product.findFirst({
+      where: { id: dto.productId, deletedAt: null },
+      select: { id: true },
     });
-    if (!detail)
-      throw new ForbiddenException(
-        'Chỉ được đánh giá sản phẩm trong đơn đã hoàn thành',
-      );
-    if (detail.review)
-      throw new ConflictException('Sản phẩm trong đơn này đã được đánh giá');
+    if (!product) {
+      throw new NotFoundException('Sản phẩm không tồn tại');
+    }
+
     return this.prisma.extended.review.create({
       data: {
         clientId,
-        orderDetailId: detail.id,
-        productId: detail.productVariant.productColor.productId,
+        productId: product.id,
+        orderDetailId: null,
         rating: dto.rating,
         content: dto.content,
       },
-      include: { client: { select: { id: true, fullName: true } } },
+      include: { client: { select: { id: true, fullName: true, avatarUrl: true } } },
+    });
+  }
+
+  async replyReview(id: string, adminReply: string) {
+    const review = await this.prisma.extended.review.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!review) throw new NotFoundException('Phản hồi không tồn tại');
+    return this.prisma.extended.review.update({
+      where: { id },
+      data: {
+        adminReply: adminReply.trim(),
+        repliedAt: new Date(),
+      },
+      include: {
+        client: { select: { id: true, fullName: true, email: true } },
+        product: { select: { id: true, name: true, slug: true } },
+      },
     });
   }
 

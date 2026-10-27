@@ -10,7 +10,6 @@ import {
   Query,
 } from '@nestjs/common';
 
-
 import { User } from 'src/common/decorators/user.decorator';
 import type { UserInfo } from 'src/common/decorators/user.decorator';
 import { Roles } from 'src/common/guards/access-control/roles.decorator';
@@ -162,7 +161,7 @@ export class SurveysController {
     @Body() dto: SurveyStatusDto,
     @User() user: UserInfo,
   ) {
-    return this.surveysService.changeStatus(id, dto.status, user);
+    return this.surveysService.changeStatus(id, dto.status, user, dto.recipientIds);
   }
 
   @Patch(':id')

@@ -86,10 +86,10 @@ export default function CustomerAnalytics() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2.5">
             <BarChart3 className="w-7 h-7 text-indigo-600" />
-            Phân tích Khách hàng & Sở thích Tiêu dùng
+            Báo cáo Khách hàng, Tỷ lệ Độ tuổi & Sở thích (CRM)
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Thống kê nhân khẩu học (độ tuổi, giới tính) và xu hướng yêu thích, mua sắm sản phẩm theo từng gian hàng từ dữ liệu thực tế hệ thống
+            Thống kê nhân khẩu học (tỷ lệ độ tuổi, giới tính) và xu hướng sở thích sản phẩm theo danh mục từ dữ liệu thực tế hệ thống
           </p>
         </div>
 
@@ -224,10 +224,10 @@ export default function CustomerAnalytics() {
             <div>
               <h2 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <Store className="w-5 h-5 text-indigo-600" />
-                Sở thích Cửa hàng theo từng Độ tuổi
+                Sở thích Danh mục Sản phẩm theo từng Độ tuổi
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Khách hàng ở từng nhóm tuổi thường xuyên mua sắm và yêu thích gian hàng nào nhất
+                Khách hàng ở từng nhóm tuổi thường xuyên mua sắm và yêu thích nhóm sản phẩm nào nhất
               </p>
             </div>
           </div>
@@ -238,8 +238,8 @@ export default function CustomerAnalytics() {
                 <tr>
                   <th className="py-2.5 px-3">Nhóm độ tuổi</th>
                   <th className="py-2.5 px-3">Quy mô</th>
-                  <th className="py-2.5 px-3">Cửa hàng YÊU THÍCH nhất</th>
-                  <th className="py-2.5 px-3">Cửa hàng MUA NHIỀU nhất</th>
+                  <th className="py-2.5 px-3">Sở thích YÊU THÍCH nhất</th>
+                  <th className="py-2.5 px-3">Danh mục MUA NHIỀU nhất</th>
                   <th className="py-2.5 px-3 text-right">Tổng chi tiêu</th>
                 </tr>
               </thead>
@@ -294,15 +294,15 @@ export default function CustomerAnalytics() {
         </div>
       </div>
 
-      {/* Section 2: Top Stores by Favorite vs Purchase vs Cart */}
+      {/* Section 2: Top Categories by Favorite vs Purchase vs Cart */}
       <div>
         <div className="mb-4">
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <Award className="w-5 h-5 text-amber-500" />
-            Bảng Xếp Hạng Xu Hướng Sở Thích Khách Hàng Theo Cửa Hàng
+            Bảng Xếp Hạng Xu Hướng Sở Thích Khách Hàng Theo Danh Mục Sản Phẩm
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Xếp hạng các cửa hàng thu hút khách hàng nhiều nhất theo từng hành vi: Lưu yêu thích, Mua hàng thực tế, và Thêm vào giỏ
+            Xếp hạng các danh mục sản phẩm thu hút khách hàng nhiều nhất theo hành vi: Lưu yêu thích, Mua hàng thực tế, và Thêm vào giỏ
           </p>
         </div>
 
@@ -314,7 +314,7 @@ export default function CustomerAnalytics() {
                 <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
                   <Heart className="w-4 h-4 fill-rose-500" />
                 </div>
-                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Top Cửa hàng YÊU THÍCH nhất</h3>
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Top Danh mục YÊU THÍCH nhất</h3>
               </div>
               <span className="text-xs font-semibold text-rose-500">Lượt thích</span>
             </div>
@@ -349,7 +349,7 @@ export default function CustomerAnalytics() {
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <ShoppingBag className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Top Cửa hàng MUA NHIỀU nhất</h3>
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Top Danh mục MUA NHIỀU nhất</h3>
               </div>
               <span className="text-xs font-semibold text-emerald-600">Doanh thu</span>
             </div>
@@ -384,7 +384,7 @@ export default function CustomerAnalytics() {
                 <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                   <ShoppingCart className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Top Cửa hàng ĐƯỢC QUAN TÂM (Giỏ hàng)</h3>
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Top Danh mục ĐƯỢC QUAN TÂM (Giỏ hàng)</h3>
               </div>
               <span className="text-xs font-semibold text-blue-600">Trong giỏ</span>
             </div>
@@ -473,7 +473,7 @@ export default function CustomerAnalytics() {
                 <th className="py-3 px-4">Khách hàng</th>
                 <th className="py-3 px-4">Giới tính & Ngày sinh</th>
                 <th className="py-3 px-4">Tuổi & Nhóm</th>
-                <th className="py-3 px-4">Cửa hàng hay mua nhất</th>
+                <th className="py-3 px-4">Sở thích / Danh mục hay mua nhất</th>
                 <th className="py-3 px-4 text-center">Yêu thích đã lưu</th>
                 <th className="py-3 px-4 text-right">Đơn hàng & Tổng chi</th>
               </tr>

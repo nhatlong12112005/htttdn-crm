@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ClipboardList, Plus, Search, Filter, Eye, BarChart3, CheckCircle2, Clock, 
-  AlertCircle, X, Trash2, Send, Store, ShieldCheck, Star, Calendar, Users, 
-  ChevronRight, Building2, User
+  ClipboardList,
+  Plus,
+  Search,
+  Eye,
+  BarChart3,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Trash2,
+  Send,
+  ShieldCheck,
+  Star,
+  Calendar,
+  User,
 } from 'lucide-react';
-import { surveysApi } from '../../api';
+import { surveysApi, usersApi } from '../../api';
 import {
   CLIENT_TOPICS,
-  VENDOR_TOPICS,
   CLIENT_TEMPLATES,
-  VENDOR_TEMPLATES,
   getPresetByTopic,
 } from '../../data/surveyTemplates';
 
@@ -20,7 +29,6 @@ export default function SurveyManagement() {
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [targetFilter, setTargetFilter] = useState('all'); // 'all' | 'client' | 'vendor'
   const [searchTerm, setSearchTerm] = useState('');
 
   // Results State
@@ -31,15 +39,14 @@ export default function SurveyManagement() {
   // Preview State
   const [previewSurvey, setPreviewSurvey] = useState(null);
 
-  // Form State
+  // Form State (CRM Client Surveys)
   const initialPreset = CLIENT_TEMPLATES[0];
-  const [targetType, setTargetType] = useState('client'); // 'client' | 'vendor'
   const [title, setTitle] = useState(initialPreset?.title || CLIENT_TOPICS[0]);
   const [description, setDescription] = useState(initialPreset?.description || '');
   const [imageUrl, setImageUrl] = useState(initialPreset?.imageUrl || '');
   const [selectedTopic, setSelectedTopic] = useState(CLIENT_TOPICS[0]);
   const [customTopic, setCustomTopic] = useState('');
-  const [audienceType, setAudienceType] = useState('all_users');
+  const [audienceType, setAudienceType] = useState('all_users'); // 'all_users' | 'selected_users'
   const [triggerType, setTriggerType] = useState('manual');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -49,9 +56,24 @@ export default function SurveyManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
 
+  // Customer Recipient Selection
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState([]);
+
   useEffect(() => {
     loadSurveys();
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'create') {
+      usersApi
+        .getUsers({ role: 'customer', status: 'active', itemPerPage: 100 })
+        .then((res) => {
+          setCustomers(res?.data?.list || []);
+        })
+        .catch(() => {});
+    }
+  }, [activeTab]);
 
   const loadSurveys = async () => {
     try {
@@ -60,7 +82,8 @@ export default function SurveyManagement() {
       if (statusFilter !== 'all') params.status = statusFilter;
       const res = await surveysApi.getSurveys(params);
       const items = res?.data?.list || (Array.isArray(res?.data) ? res.data : []);
-      setSurveys(items);
+      // Chỉ hiển thị khảo sát dành cho khách hàng (loại bỏ khảo sát vendor cũ)
+      setSurveys(items.filter((s) => s.audienceType !== 'all_vendors'));
     } catch (err) {
       console.error('Failed to load admin surveys:', err);
     } finally {
@@ -70,37 +93,14 @@ export default function SurveyManagement() {
 
   const handleTopicSelect = (topic) => {
     setSelectedTopic(topic);
-    const preset = getPresetByTopic(targetType, topic);
+    const preset = getPresetByTopic('client', topic);
     if (preset) {
       setTitle(preset.title);
       setDescription(preset.description || '');
       if (preset.imageUrl) setImageUrl(preset.imageUrl);
       setQuestions(preset.questions.map((q, idx) => ({ ...q, id: String(idx + 1) })));
-    } else {
-      if (!topic.includes('Khác')) {
-        setTitle(topic);
-      }
-    }
-  };
-
-  const handleTargetTypeChange = (type) => {
-    setTargetType(type);
-    const defaultTopic = type === 'client' ? CLIENT_TOPICS[0] : VENDOR_TOPICS[0];
-    setSelectedTopic(defaultTopic);
-    if (type === 'client') {
-      setAudienceType('all_users');
-    } else {
-      setAudienceType('all_vendors');
-      setTriggerType('manual');
-    }
-    const preset = getPresetByTopic(type, defaultTopic);
-    if (preset) {
-      setTitle(preset.title);
-      setDescription(preset.description || '');
-      if (preset.imageUrl) setImageUrl(preset.imageUrl);
-      setQuestions(preset.questions.map((q, idx) => ({ ...q, id: String(idx + 1) })));
-    } else {
-      setTitle(defaultTopic);
+    } else if (!topic.includes('Khác')) {
+      setTitle(topic);
     }
   };
 
@@ -131,14 +131,16 @@ export default function SurveyManagement() {
     }
   };
 
-  // Question manipulation
   const handleAddQuestion = (type) => {
     const newQ = {
       id: Date.now().toString(),
       question: '',
       type,
       required: false,
-      options: type === 'single_choice' || type === 'multiple_choice' ? ['Lựa chọn 1', 'Lựa chọn 2'] : []
+      options:
+        type === 'single_choice' || type === 'multiple_choice'
+          ? ['Lựa chọn 1', 'Lựa chọn 2']
+          : [],
     };
     setQuestions([...questions, newQ]);
   };
@@ -171,9 +173,15 @@ export default function SurveyManagement() {
     setQuestions(updated);
   };
 
-  // Create survey
+  const toggleSelectCustomer = (id) => {
+    setSelectedCustomerIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   const handleCreateSurvey = async (activateImmediately = false) => {
-    const surveyTitle = title.trim() || (selectedTopic.includes('Khác') ? customTopic : selectedTopic);
+    const surveyTitle =
+      title.trim() || (selectedTopic.includes('Khác') ? customTopic : selectedTopic);
     if (!surveyTitle) {
       alert('Vui lòng nhập tiêu đề hoặc chủ đề khảo sát');
       return;
@@ -182,12 +190,19 @@ export default function SurveyManagement() {
       alert('Vui lòng thêm ít nhất một câu hỏi khảo sát');
       return;
     }
+    if (audienceType === 'selected_users' && selectedCustomerIds.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 tài khoản khách hàng nhận khảo sát');
+      return;
+    }
     for (const q of questions) {
       if (!q.question.trim()) {
         alert('Có câu hỏi chưa nhập nội dung');
         return;
       }
-      if ((q.type === 'single_choice' || q.type === 'multiple_choice') && q.options.length < 2) {
+      if (
+        (q.type === 'single_choice' || q.type === 'multiple_choice') &&
+        q.options.length < 2
+      ) {
         alert(`Câu hỏi trắc nghiệm "${q.question}" cần ít nhất 2 đáp án`);
         return;
       }
@@ -198,9 +213,10 @@ export default function SurveyManagement() {
       const payload = {
         title: surveyTitle,
         description: description.trim() || undefined,
-        imageUrl: (imageUrl && imageUrl.trim().startsWith('http')) ? imageUrl.trim() : undefined,
+        imageUrl:
+          imageUrl && imageUrl.trim().startsWith('http') ? imageUrl.trim() : undefined,
         scope: 'platform',
-        audienceType: targetType === 'vendor' ? 'all_vendors' : audienceType,
+        audienceType,
         triggerType,
         startDate: startDate ? new Date(startDate).toISOString() : undefined,
         endDate: endDate ? new Date(endDate).toISOString() : undefined,
@@ -209,37 +225,41 @@ export default function SurveyManagement() {
           type: q.type,
           required: !!q.required,
           position: idx + 1,
-          options: (q.type === 'single_choice' || q.type === 'multiple_choice')
-            ? q.options.map((opt, oIdx) => ({ content: opt.trim(), position: oIdx + 1 }))
-            : undefined
-        }))
+          options:
+            q.type === 'single_choice' || q.type === 'multiple_choice'
+              ? q.options.map((opt, oIdx) => ({ content: opt.trim(), position: oIdx + 1 }))
+              : undefined,
+        })),
       };
 
       const res = await surveysApi.createSurvey(payload);
       const created = res?.data?.data || res?.data || res;
 
       if (activateImmediately && created?.id) {
-        await surveysApi.changeStatus(created.id, 'active');
+        await surveysApi.changeStatus(
+          created.id,
+          'active',
+          audienceType === 'selected_users' ? selectedCustomerIds : undefined
+        );
       }
 
       setFeedbackMsg(
         activateImmediately
-          ? `Khảo sát cho ${targetType === 'vendor' ? 'Đối tác Nhà bán' : 'Khách hàng'} đã kích hoạt và gửi thông báo thành công!`
-          : 'Đã lưu bản nháp khảo sát thành công!'
+          ? 'Đã tạo bảng khảo sát và gửi thông báo đến tài khoản khách hàng thành công!'
+          : 'Đã lưu bản nháp khảo sát khách hàng thành công!'
       );
       loadSurveys();
       setActiveTab('list');
-
-      // Reset form
-      setTitle('');
-      setDescription('');
+      setSelectedCustomerIds([]);
     } catch (err) {
       console.error('Error creating survey:', err);
       const data = err.response?.data;
       let errorText = err.message;
       if (data?.errors) {
         if (Array.isArray(data.errors) && data.errors.length > 0) {
-          errorText = data.errors.map(e => e.message || e.error || JSON.stringify(e)).join(', ');
+          errorText = data.errors
+            .map((e) => e.message || e.error || JSON.stringify(e))
+            .join(', ');
         } else if (typeof data.errors === 'string') {
           errorText = data.errors;
         }
@@ -252,13 +272,11 @@ export default function SurveyManagement() {
     }
   };
 
-  const filteredSurveys = surveys.filter(s => {
+  const filteredSurveys = surveys.filter((s) => {
     if (searchTerm) {
       const match = s.title?.toLowerCase().includes(searchTerm.toLowerCase());
       if (!match) return false;
     }
-    if (targetFilter === 'vendor' && s.audienceType !== 'all_vendors') return false;
-    if (targetFilter === 'client' && s.audienceType === 'all_vendors') return false;
     return true;
   });
 
@@ -271,10 +289,12 @@ export default function SurveyManagement() {
             <span className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-xl">
               <ClipboardList className="w-6 h-6" />
             </span>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Survey Management (CRM)</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              Quản lý Khảo sát Khách hàng & Thống kê Kết quả (CRM)
+            </h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Quản trị toàn bộ chiến dịch khảo sát Client (Khách hàng) và Vendor (Đối tác bán hàng).
+            Tạo bảng khảo sát độ hài lòng, thăm dò sản phẩm mới, gửi đến tài khoản khách hàng và thống kê kết quả.
           </p>
         </div>
 
@@ -283,7 +303,7 @@ export default function SurveyManagement() {
             onClick={() => setActiveTab('create')}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-sm hover:shadow transition-all"
           >
-            <Plus className="w-4 h-4" /> Tạo khảo sát mới
+            <Plus className="w-4 h-4" /> Tạo bảng khảo sát mới
           </button>
         )}
       </div>
@@ -298,7 +318,7 @@ export default function SurveyManagement() {
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
           }`}
         >
-          Tất cả khảo sát ({surveys.length})
+          Danh sách khảo sát ({surveys.length})
         </button>
         <button
           onClick={() => setActiveTab('create')}
@@ -308,7 +328,7 @@ export default function SurveyManagement() {
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
           }`}
         >
-          + Tạo khảo sát (Client / Vendor)
+          + Tạo bảng khảo sát & Gửi Khách hàng
         </button>
         {selectedSurveyId && (
           <button
@@ -319,7 +339,7 @@ export default function SurveyManagement() {
                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
             }`}
           >
-            Thống kê kết quả
+            Thống kê kết quả khảo sát
           </button>
         )}
       </div>
@@ -330,22 +350,24 @@ export default function SurveyManagement() {
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <span className="text-sm font-medium">{feedbackMsg}</span>
           </div>
-          <button onClick={() => setFeedbackMsg(null)} className="text-emerald-600 hover:text-emerald-800">
+          <button
+            onClick={() => setFeedbackMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* ──────────────── TAB 1: ALL SURVEYS ──────────────── */}
+      {/* TAB 1: LIST */}
       {activeTab === 'list' && (
         <div className="space-y-4">
-          {/* Filter Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Tìm kiếm theo tiêu đề..."
+                placeholder="Tìm kiếm khảo sát theo tiêu đề..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100"
@@ -353,19 +375,6 @@ export default function SurveyManagement() {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 font-medium">Đối tượng:</span>
-                <select
-                  value={targetFilter}
-                  onChange={(e) => setTargetFilter(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300"
-                >
-                  <option value="all">Tất cả đối tượng</option>
-                  <option value="client">Khách hàng (Client)</option>
-                  <option value="vendor">Đối tác (Vendor)</option>
-                </select>
-              </div>
-
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-500 font-medium">Trạng thái:</span>
                 <select
@@ -382,7 +391,6 @@ export default function SurveyManagement() {
             </div>
           </div>
 
-          {/* Table */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             {loading ? (
               <div className="py-16 text-center text-slate-400">
@@ -392,8 +400,12 @@ export default function SurveyManagement() {
             ) : filteredSurveys.length === 0 ? (
               <div className="py-16 text-center text-slate-400">
                 <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-base font-semibold text-slate-700 dark:text-slate-300">Không tìm thấy khảo sát nào</p>
-                <p className="text-sm text-slate-500 mt-1">Tạo khảo sát để bắt đầu thu thập dữ liệu trải nghiệm.</p>
+                <p className="text-base font-semibold text-slate-700 dark:text-slate-300">
+                  Không tìm thấy khảo sát nào
+                </p>
+                <p className="text-sm text-slate-500 mt-1">
+                  Tạo bảng khảo sát để gửi tới tài khoản khách hàng.
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -401,113 +413,103 @@ export default function SurveyManagement() {
                   <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
                     <tr>
                       <th className="px-6 py-4">Tiêu đề khảo sát</th>
-                      <th className="px-4 py-4">Đối tượng</th>
-                      <th className="px-4 py-4">Người tạo</th>
+                      <th className="px-4 py-4">Đối tượng nhận</th>
                       <th className="px-4 py-4">Thời gian</th>
                       <th className="px-4 py-4">Trạng thái</th>
-                      <th className="px-4 py-4 text-center">Phản hồi</th>
+                      <th className="px-4 py-4 text-center">Lượt phản hồi</th>
                       <th className="px-6 py-4 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {filteredSurveys.map((survey) => {
-                      const isVendorTarget = survey.audienceType === 'all_vendors';
-                      const isCreatedByAdmin = !!survey.adminId || survey.scope === 'platform';
-
-                      return (
-                        <tr key={survey.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-slate-900 dark:text-white max-w-sm truncate">
-                              {survey.title}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
-                              {survey.description || 'Không có mô tả'}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            {isVendorTarget ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                                <Building2 className="w-3 h-3" /> Toàn bộ Vendor
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                <User className="w-3 h-3" /> Khách hàng (Client)
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-xs">
-                            {isCreatedByAdmin ? (
-                              <span className="font-medium text-blue-600 dark:text-blue-400">MIVA Admin</span>
-                            ) : (
-                              <span className="font-medium text-amber-600 dark:text-amber-400">
-                                {survey.vendor?.storeName || 'Shop đối tác'}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-xs text-slate-500">
-                            {survey.startDate ? new Date(survey.startDate).toLocaleDateString('vi-VN') : 'Bắt đầu ngay'}
-                            {' → '}
-                            {survey.endDate ? new Date(survey.endDate).toLocaleDateString('vi-VN') : 'Không giới hạn'}
-                          </td>
-                          <td className="px-4 py-4">
-                            {survey.status === 'active' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                Đang diễn ra
-                              </span>
-                            )}
+                    {filteredSurveys.map((survey) => (
+                      <tr
+                        key={survey.id}
+                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900 dark:text-white max-w-sm truncate">
+                            {survey.title}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
+                            {survey.description || 'Không có mô tả'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                            <User className="w-3 h-3" />
+                            {survey.audienceType === 'selected_users'
+                              ? 'Khách hàng được chọn'
+                              : 'Toàn bộ Khách hàng'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-xs text-slate-500">
+                          {survey.startDate
+                            ? new Date(survey.startDate).toLocaleDateString('vi-VN')
+                            : 'Bắt đầu ngay'}
+                          {' → '}
+                          {survey.endDate
+                            ? new Date(survey.endDate).toLocaleDateString('vi-VN')
+                            : 'Không giới hạn'}
+                        </td>
+                        <td className="px-4 py-4">
+                          {survey.status === 'active' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                              Đang diễn ra
+                            </span>
+                          )}
+                          {survey.status === 'draft' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                              Bản nháp
+                            </span>
+                          )}
+                          {survey.status === 'closed' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                              Đã đóng
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-center font-bold text-slate-700 dark:text-slate-300">
+                          {survey._count?.responses || 0}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenResults(survey.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50"
+                              title="Thống kê kết quả khảo sát"
+                            >
+                              <BarChart3 className="w-3.5 h-3.5" />
+                              Thống kê
+                            </button>
+                            <button
+                              onClick={() => setPreviewSurvey(survey)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              title="Xem trước câu hỏi"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                             {survey.status === 'draft' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                                Bản nháp
-                              </span>
-                            )}
-                            {survey.status === 'closed' && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                                Đã đóng
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-center font-bold text-slate-700 dark:text-slate-300">
-                            {survey._count?.responses || 0}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => handleOpenResults(survey.id)}
-                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50"
-                                title="Xem thống kê kết quả"
+                                onClick={() => handleChangeStatus(survey.id, 'active')}
+                                className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
+                                title="Kích hoạt và gửi thông báo tới khách hàng"
                               >
-                                <BarChart3 className="w-4 h-4" />
+                                Gửi khảo sát
                               </button>
+                            )}
+                            {survey.status === 'active' && (
                               <button
-                                onClick={() => setPreviewSurvey(survey)}
-                                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                title="Xem trước câu hỏi"
+                                onClick={() => handleChangeStatus(survey.id, 'closed')}
+                                className="px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100"
+                                title="Đóng khảo sát"
                               >
-                                <Eye className="w-4 h-4" />
+                                Đóng
                               </button>
-                              {survey.status === 'draft' && (
-                                <button
-                                  onClick={() => handleChangeStatus(survey.id, 'active')}
-                                  className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
-                                  title="Kích hoạt và gửi thông báo"
-                                >
-                                  Kích hoạt
-                                </button>
-                              )}
-                              {survey.status === 'active' && (
-                                <button
-                                  onClick={() => handleChangeStatus(survey.id, 'closed')}
-                                  className="px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100"
-                                  title="Đóng khảo sát"
-                                >
-                                  Đóng
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -516,66 +518,22 @@ export default function SurveyManagement() {
         </div>
       )}
 
-      {/* ──────────────── TAB 2: CREATE SURVEY (ADMIN) ──────────────── */}
+      {/* TAB 2: CREATE SURVEY */}
       {activeTab === 'create' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* Step 1: Target Actor Selection */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
-                1. Chọn đối tượng khảo sát
+                1. Chủ đề & Thông tin Bảng khảo sát Khách hàng
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleTargetTypeChange('client')}
-                  className={`p-4 rounded-2xl border text-left flex items-start gap-3 transition-all ${
-                    targetType === 'client'
-                      ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30 ring-2 ring-blue-600/20'
-                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 hover:border-slate-300'
-                  }`}
-                >
-                  <span className={`p-2 rounded-xl shrink-0 ${targetType === 'client' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    <User className="w-5 h-5" />
-                  </span>
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">Luồng 1 – Khảo sát Client (Người mua)</h4>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Thu thập trải nghiệm mua sắm, thanh toán, giao hàng, đề xuất tính năng mới trên MIVA.
-                    </p>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleTargetTypeChange('vendor')}
-                  className={`p-4 rounded-2xl border text-left flex items-start gap-3 transition-all ${
-                    targetType === 'vendor'
-                      ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30 ring-2 ring-blue-600/20'
-                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 hover:border-slate-300'
-                  }`}
-                >
-                  <span className={`p-2 rounded-xl shrink-0 ${targetType === 'vendor' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    <Building2 className="w-5 h-5" />
-                  </span>
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">Luồng 2 – Khảo sát Vendor (Đối tác)</h4>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Thu thập phản hồi về quản lý cửa hàng, đóng gói giao ship, chính sách nền tảng MIVA.
-                    </p>
-                  </div>
-                </button>
-              </div>
-
-              {/* Preset Topics based on Target */}
-              <div className="pt-2">
+              <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Chủ đề khảo sát theo luồng nghiệp vụ:
+                  Mẫu khảo sát CRM (Độ hài lòng / Thăm dò ra mắt sản phẩm mới):
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {(targetType === 'client' ? CLIENT_TOPICS : VENDOR_TOPICS).map((topic) => (
+                  {CLIENT_TOPICS.map((topic) => (
                     <button
                       type="button"
                       key={topic}
@@ -592,7 +550,6 @@ export default function SurveyManagement() {
                 </div>
               </div>
 
-              {/* Title & Description */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Tiêu đề khảo sát <span className="text-rose-500">*</span>
@@ -601,20 +558,20 @@ export default function SurveyManagement() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Nhập tiêu đề khảo sát..."
+                  placeholder="Ví dụ: Khảo sát thăm dò nhu cầu khách hàng trước khi ra mắt bộ sưu tập mới..."
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 font-semibold"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Mô tả lời mời (hiển thị trong Notification)
+                  Mô tả lời mời (hiển thị trong thông báo gửi tài khoản khách hàng)
                 </label>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ban Quản Trị MIVA trân trọng kính mời quý khách tham gia khảo sát..."
+                  placeholder="Kính mời quý khách thực hiện khảo sát để doanh nghiệp nâng cao chất lượng sản phẩm..."
                   className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-100 resize-none"
                 />
               </div>
@@ -625,7 +582,7 @@ export default function SurveyManagement() {
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                   <ClipboardList className="w-5 h-5 text-blue-600" />
-                  2. Danh sách câu hỏi ({questions.length})
+                  2. Danh sách câu hỏi khảo sát ({questions.length})
                 </h3>
 
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -692,13 +649,22 @@ export default function SurveyManagement() {
                     <div className="flex items-center justify-between pl-8 text-xs text-slate-500">
                       <div className="flex items-center gap-3">
                         <span className="font-medium bg-slate-200/70 dark:bg-slate-700 px-2 py-0.5 rounded">
-                          Loại: {q.type === 'rating' ? 'Đánh giá Sao (1-5)' : q.type === 'single_choice' ? 'Chọn 1 đáp án' : q.type === 'multiple_choice' ? 'Chọn nhiều' : 'Tự luận'}
+                          Loại:{' '}
+                          {q.type === 'rating'
+                            ? 'Đánh giá Sao (1-5)'
+                            : q.type === 'single_choice'
+                            ? 'Chọn 1 đáp án'
+                            : q.type === 'multiple_choice'
+                            ? 'Chọn nhiều'
+                            : 'Tự luận'}
                         </span>
                         <label className="flex items-center gap-1.5 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={q.required}
-                            onChange={(e) => handleUpdateQuestion(idx, 'required', e.target.checked)}
+                            onChange={(e) =>
+                              handleUpdateQuestion(idx, 'required', e.target.checked)
+                            }
                             className="rounded text-blue-600 focus:ring-blue-500"
                           />
                           <span>Bắt buộc trả lời</span>
@@ -710,7 +676,9 @@ export default function SurveyManagement() {
                       <div className="pl-8 space-y-2 pt-1">
                         {q.options.map((opt, oIdx) => (
                           <div key={oIdx} className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400 font-bold w-4">{oIdx + 1}.</span>
+                            <span className="text-xs text-slate-400 font-bold w-4">
+                              {oIdx + 1}.
+                            </span>
                             <input
                               type="text"
                               value={opt}
@@ -743,30 +711,86 @@ export default function SurveyManagement() {
             </div>
           </div>
 
-          {/* Delivery & Activation */}
+          {/* Step 3: Delivery & Customer Account Selection */}
           <div className="space-y-6">
             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-600" />
-                3. Thiết lập gửi thông báo
+                3. Gửi đến Tài khoản Khách hàng
               </h3>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Cơ chế kích hoạt
+                  Nhóm tài khoản khách hàng nhận khảo sát
+                </label>
+                <select
+                  value={audienceType}
+                  onChange={(e) => setAudienceType(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  <option value="all_users">Tất cả tài khoản khách hàng đang hoạt động</option>
+                  <option value="selected_users">Chọn tài khoản khách hàng cụ thể</option>
+                </select>
+              </div>
+
+              {audienceType === 'selected_users' && (
+                <div className="space-y-2 border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50/70 dark:bg-slate-800/50">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <span>Chọn tài khoản ({selectedCustomerIds.length} đã chọn)</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedCustomerIds(
+                          selectedCustomerIds.length === customers.length
+                            ? []
+                            : customers.map((c) => c.id)
+                        )
+                      }
+                      className="text-blue-600 hover:underline"
+                    >
+                      {selectedCustomerIds.length === customers.length
+                        ? 'Bỏ chọn hết'
+                        : 'Chọn tất cả'}
+                    </button>
+                  </div>
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                    {customers.map((cus) => (
+                      <label
+                        key={cus.id}
+                        className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomerIds.includes(cus.id)}
+                          onChange={() => toggleSelectCustomer(cus.id)}
+                          className="rounded text-blue-600"
+                        />
+                        <div className="truncate">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                            {cus.fullName}
+                          </span>
+                          <span className="text-[11px] text-slate-400 block truncate">
+                            {cus.email}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Cơ chế kích hoạt gửi
                 </label>
                 <select
                   value={triggerType}
                   onChange={(e) => setTriggerType(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100"
                 >
-                  <option value="manual">Gửi thủ công ngay khi kích hoạt</option>
-                  {targetType === 'client' && (
-                    <>
-                      <option value="after_order_completed">Tự động gửi khi đơn hàng hoàn thành</option>
-                      <option value="after_checkout">Tự động gửi sau khi Checkout</option>
-                    </>
-                  )}
+                  <option value="manual">Gửi ngay vào tài khoản khách hàng khi kích hoạt</option>
+                  <option value="after_order_completed">Tự động gửi khi đơn hàng hoàn thành</option>
+                  <option value="after_checkout">Tự động gửi sau khi khách đặt hàng</option>
                 </select>
               </div>
 
@@ -783,7 +807,7 @@ export default function SurveyManagement() {
               </div>
 
               <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl text-xs text-blue-800 dark:text-blue-300">
-                Khi kích hoạt, hệ thống sẽ tự động tạo thông báo gửi tới biểu tượng <strong>Chuông Thông báo</strong> của từng đối tượng ({targetType === 'vendor' ? 'Tất cả Vendor' : 'Tất cả Client'}).
+                Khi bấm gửi, hệ thống sẽ tạo thông báo khảo sát gửi trực tiếp đến <strong>Chuông thông báo & Hộp thư Khảo sát</strong> của tài khoản khách hàng.
               </div>
             </div>
 
@@ -795,7 +819,7 @@ export default function SurveyManagement() {
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
-                {submitting ? 'Đang kích hoạt...' : 'Kích hoạt & Gửi thông báo ngay'}
+                {submitting ? 'Đang gửi...' : 'Kích hoạt & Gửi đến Khách hàng'}
               </button>
 
               <button
@@ -819,7 +843,7 @@ export default function SurveyManagement() {
         </div>
       )}
 
-      {/* ──────────────── TAB 3: RESULTS (ADMIN) ──────────────── */}
+      {/* TAB 3: RESULTS */}
       {activeTab === 'results' && (
         <div className="space-y-6">
           <button
@@ -832,7 +856,7 @@ export default function SurveyManagement() {
           {resultsLoading ? (
             <div className="py-20 text-center text-slate-400">
               <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-              <p className="text-sm">Đang tải số liệu thống kê...</p>
+              <p className="text-sm">Đang tải số liệu thống kê kết quả khảo sát...</p>
             </div>
           ) : !surveyResults ? (
             <div className="py-12 text-center text-slate-400">
@@ -841,10 +865,9 @@ export default function SurveyManagement() {
             </div>
           ) : (
             <>
-              {/* Summary KPIs */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="text-xs text-slate-500 font-medium">Tổng người được mời</div>
+                  <div className="text-xs text-slate-500 font-medium">Khách hàng được mời</div>
                   <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                     {surveyResults.summary?.invitedCount || 0}
                   </div>
@@ -858,7 +881,7 @@ export default function SurveyManagement() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="text-xs text-slate-500 font-medium">Đã trả lời</div>
+                  <div className="text-xs text-slate-500 font-medium">Đã hoàn thành</div>
                   <div className="text-2xl font-bold text-emerald-600 mt-1">
                     {surveyResults.summary?.responseCount || 0}
                   </div>
@@ -879,10 +902,9 @@ export default function SurveyManagement() {
                 </div>
               </div>
 
-              {/* Question breakdown */}
               <div className="space-y-6">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                  Kết quả chi tiết từng câu hỏi
+                  Thống kê chi tiết từng câu hỏi khảo sát
                 </h3>
 
                 {surveyResults.questions?.map((q, idx) => (
@@ -890,23 +912,27 @@ export default function SurveyManagement() {
                     key={q.id}
                     className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
                   >
-                    <div>
-                      <div className="flex items-start gap-2">
-                        <span className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                          {idx + 1}
+                    <div className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <h4 className="font-bold text-base text-slate-900 dark:text-white">
+                          {q.question}
+                        </h4>
+                        <span className="text-xs text-slate-400">
+                          Loại:{' '}
+                          {q.type === 'rating'
+                            ? 'Đánh giá Sao'
+                            : q.type === 'single_choice'
+                            ? 'Chọn 1'
+                            : q.type === 'multiple_choice'
+                            ? 'Chọn nhiều'
+                            : 'Tự luận'}
                         </span>
-                        <div>
-                          <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                            {q.question}
-                          </h4>
-                          <span className="text-xs text-slate-400">
-                            Loại: {q.type === 'rating' ? 'Đánh giá Sao' : q.type === 'single_choice' ? 'Chọn 1' : q.type === 'multiple_choice' ? 'Chọn nhiều' : 'Tự luận'}
-                          </span>
-                        </div>
                       </div>
                     </div>
 
-                    {/* Rating Results */}
                     {q.type === 'rating' && q.result?.distribution && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-3">
@@ -914,7 +940,7 @@ export default function SurveyManagement() {
                             {Number(q.result.average || 0).toFixed(1)}
                           </span>
                           <div className="flex items-center text-amber-400">
-                            {[1, 2, 3, 4, 5].map(s => (
+                            {[1, 2, 3, 4, 5].map((s) => (
                               <Star
                                 key={s}
                                 className={`w-5 h-5 ${
@@ -931,11 +957,15 @@ export default function SurveyManagement() {
                         </div>
 
                         <div className="space-y-1.5 pt-2">
-                          {q.result.distribution.map(d => {
-                            const percent = q.result.answeredCount ? (d.count / q.result.answeredCount) * 100 : 0;
+                          {q.result.distribution.map((d) => {
+                            const percent = q.result.answeredCount
+                              ? (d.count / q.result.answeredCount) * 100
+                              : 0;
                             return (
                               <div key={d.value} className="flex items-center gap-3 text-xs">
-                                <span className="w-12 text-slate-600 dark:text-slate-400 font-semibold">{d.value} sao</span>
+                                <span className="w-12 text-slate-600 dark:text-slate-400 font-semibold">
+                                  {d.value} sao
+                                </span>
                                 <div className="flex-1 h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                   <div
                                     className="h-full bg-amber-400 rounded-full transition-all duration-500"
@@ -952,36 +982,37 @@ export default function SurveyManagement() {
                       </div>
                     )}
 
-                    {/* Choices Results */}
-                    {(q.type === 'single_choice' || q.type === 'multiple_choice') && q.result?.options && (
-                      <div className="space-y-2 pt-2">
-                        {q.result.options.map((opt, oIdx) => (
-                          <div key={opt.id} className="space-y-1 text-xs">
-                            <div className="flex justify-between font-medium text-slate-700 dark:text-slate-300">
-                              <span>{opt.content}</span>
-                              <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                {opt.count} lượt ({Number(opt.percentage || 0).toFixed(1)}%)
-                              </span>
+                    {(q.type === 'single_choice' || q.type === 'multiple_choice') &&
+                      q.result?.options && (
+                        <div className="space-y-2 pt-2">
+                          {q.result.options.map((opt, oIdx) => (
+                            <div key={opt.id} className="space-y-1 text-xs">
+                              <div className="flex justify-between font-medium text-slate-700 dark:text-slate-300">
+                                <span>{opt.content}</span>
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                  {opt.count} lượt ({Number(opt.percentage || 0).toFixed(1)}%)
+                                </span>
+                              </div>
+                              <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all duration-500"
+                                  style={{
+                                    width: `${opt.percentage || 0}%`,
+                                    backgroundColor: COLORS[oIdx % COLORS.length],
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${opt.percentage || 0}%`,
-                                  backgroundColor: COLORS[oIdx % COLORS.length]
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
 
-                    {/* Text Feedback */}
                     {q.type === 'text' && q.result?.list && (
                       <div className="space-y-2 pt-2">
                         {q.result.list.length === 0 ? (
-                          <p className="text-xs text-slate-400 italic">Chưa có phản hồi tự luận nào.</p>
+                          <p className="text-xs text-slate-400 italic">
+                            Chưa có phản hồi tự luận nào.
+                          </p>
                         ) : (
                           q.result.list.map((ans) => (
                             <div
@@ -990,7 +1021,7 @@ export default function SurveyManagement() {
                             >
                               <div className="flex items-center justify-between text-slate-400">
                                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                  {ans.response?.client?.fullName || 'Người tham gia'}
+                                  {ans.response?.client?.fullName || 'Khách hàng'}
                                 </span>
                                 <span>{new Date(ans.createdAt).toLocaleDateString('vi-VN')}</span>
                               </div>
@@ -1017,39 +1048,52 @@ export default function SurveyManagement() {
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-600">
-                  Xem trước khảo sát
+                  Xem trước bảng khảo sát
                 </span>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">
                   {previewSurvey.title}
                 </h3>
               </div>
-              <button onClick={() => setPreviewSurvey(null)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button
+                onClick={() => setPreviewSurvey(null)}
+                className="p-1 text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
             {previewSurvey.description && (
-              <p className="text-sm text-slate-600 dark:text-slate-300">{previewSurvey.description}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                {previewSurvey.description}
+              </p>
             )}
 
             <div className="space-y-4 pt-2">
               {previewSurvey.questions?.map((q, idx) => (
-                <div key={q.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border text-xs space-y-2">
+                <div
+                  key={q.id}
+                  className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border text-xs space-y-2"
+                >
                   <div className="font-semibold text-slate-800 dark:text-slate-200">
                     {idx + 1}. {q.question} {q.required && <span className="text-rose-500">*</span>}
                   </div>
                   {q.type === 'rating' && (
                     <div className="flex gap-1 text-amber-400">
-                      {[1, 2, 3, 4, 5].map(s => <Star key={s} className="w-4 h-4 fill-amber-400" />)}
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} className="w-4 h-4 fill-amber-400" />
+                      ))}
                     </div>
                   )}
-                  {q.options?.map(opt => (
-                    <div key={opt.id} className="p-2 bg-white dark:bg-slate-800 rounded border text-slate-600 dark:text-slate-300">
+                  {q.options?.map((opt) => (
+                    <div
+                      key={opt.id}
+                      className="p-2 bg-white dark:bg-slate-800 rounded border text-slate-600 dark:text-slate-300"
+                    >
                       • {opt.content}
                     </div>
                   ))}
                   {q.type === 'text' && (
                     <div className="p-2 bg-white dark:bg-slate-800 rounded border text-slate-400 italic">
-                      [Người nhận nhập câu trả lời tự luận]
+                      [Khách hàng nhập câu trả lời tự luận]
                     </div>
                   )}
                 </div>

@@ -10,13 +10,12 @@ import {
   Query,
 } from '@nestjs/common';
 
-
 import { SkipAuth } from 'src/app/auth/auth.decorator';
 import { User } from 'src/common/decorators/user.decorator';
 import type { UserInfo } from 'src/common/decorators/user.decorator';
 import { Roles } from 'src/common/guards/access-control/roles.decorator';
 import { ParseParamsPaginationPipe } from 'src/common/pipes/parse-params-pagination.pipe';
-import { CreateReviewDto } from './dto/create-review.dto';
+import { CreateReviewDto, ReplyReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { GetReviewsPaginationDto } from './dto/get-review.dto';
 import { ReviewsService } from './reviews.service';
@@ -43,6 +42,15 @@ export class ReviewsController {
   @Roles('client')
   create(@Body() dto: CreateReviewDto, @User() user: UserInfo) {
     return this.reviewsService.create(user.userID, dto);
+  }
+
+  @Patch('admin/:id/reply')
+  @Roles('admin')
+  replyReview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReplyReviewDto,
+  ) {
+    return this.reviewsService.replyReview(id, dto.adminReply);
   }
 
   @Delete('admin/:id')

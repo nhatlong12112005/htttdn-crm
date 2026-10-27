@@ -169,6 +169,7 @@ export class UsersService {
                 { fullName: { contains: search, mode: 'insensitive' } },
                 { email: { contains: search, mode: 'insensitive' } },
                 { phone: { contains: search, mode: 'insensitive' } },
+                { department: { contains: search, mode: 'insensitive' } },
               ],
             }
           : {}),
@@ -187,6 +188,7 @@ export class UsersService {
             email: true,
             phone: true,
             avatarUrl: true,
+            department: true,
             status: true,
             createdAt: true,
           },
@@ -198,6 +200,7 @@ export class UsersService {
           ...a,
           userCode: this.formatAccountCode('ADM', a.id),
           role: 'admin',
+          adminRole: a.department || 'SUPER_ADMIN',
           address: '',
         })),
         totalItems,
@@ -370,7 +373,7 @@ export class UsersService {
           password: hashedPassword,
           phone: data.phone?.trim() || null,
           avatarUrl: data.avatarUrl?.trim() || null,
-          department: data.department?.trim() || null,
+          department: data.department?.trim() || 'CRM_MANAGER',
           status,
         },
       });
@@ -487,6 +490,7 @@ export class UsersService {
         email: true,
         phone: true,
         avatarUrl: true,
+        department: true,
         status: true,
         createdAt: true,
       },
@@ -497,6 +501,7 @@ export class UsersService {
         userCode: this.formatAccountCode('ADM', admin.id),
         address: '',
         role: 'admin',
+        adminRole: admin.department || 'SUPER_ADMIN',
       };
     }
 

@@ -5,6 +5,7 @@ import RealtimeBridge from './realtime/RealtimeBridge';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
 import Dashboard from './pages/dashboard/Dashboard';
+import AccountManagement from './pages/accounts/AccountManagement';
 import UserManagement from './pages/users/UserManagement';
 import CategoryManagement from './pages/categories/CategoryManagement';
 import OrderManagement from './pages/orders/OrderManagement';
@@ -22,22 +23,23 @@ function App() {
         <AuthProvider>
           <RealtimeBridge />
           <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          
-          <Route element={<ProtectedRoute />}>
-            <Route element={<DashboardLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="/categories" element={<CategoryManagement />} />
-              <Route path="/orders" element={<OrderManagement />} />
-              <Route path="/vouchers" element={<VoucherManagement />} />
-              <Route path="/reviews" element={<ReviewManagement />} />
-              <Route path="/surveys" element={<SurveyManagement />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/customer-analytics" element={<CustomerAnalytics />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+
+            <Route element={<ProtectedRoute />}>
+              <Route element={<DashboardLayout />}>
+                <Route path="/system/accounts" element={<AccountManagement />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/users" element={<UserManagement />} />
+                <Route path="/categories" element={<CategoryManagement />} />
+                <Route path="/orders" element={<OrderManagement />} />
+                <Route path="/vouchers" element={<VoucherManagement />} />
+                <Route path="/reviews" element={<ReviewManagement />} />
+                <Route path="/surveys" element={<SurveyManagement />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/customer-analytics" element={<CustomerAnalytics />} />
+              </Route>
             </Route>
-          </Route>
           </Routes>
         </AuthProvider>
       </BrowserRouter>

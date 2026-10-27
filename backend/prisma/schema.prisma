@@ -575,16 +575,18 @@ model Review {
   id            String    @id @default(uuid()) @db.Uuid
   clientId      String    @db.Uuid
   productId     String    @db.Uuid
-  orderDetailId String    @unique @db.Uuid
+  orderDetailId String?   @unique @db.Uuid
   content       String?   @db.Text
   rating        Int
+  adminReply    String?   @db.Text
+  repliedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  orderDetail OrderDetail @relation(fields: [orderDetailId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderDetail OrderDetail? @relation(fields: [orderDetailId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([productId])
