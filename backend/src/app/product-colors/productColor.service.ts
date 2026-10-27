@@ -113,7 +113,7 @@ export class ProductColorService extends PrismaBaseService<'productColor'> {
    */
   async getProductColorsByProductId(productId: string) {
     // Kiểm tra sản phẩm có tồn tại.
-    const product = await this.prismaDb.product.findFirst({
+    const product = await this.prismaDb.extended.product.findFirst({
       where: {
         id: productId,
         deletedAt: null},
@@ -140,7 +140,7 @@ export class ProductColorService extends PrismaBaseService<'productColor'> {
    * Lấy chi tiết một màu chưa bị xóa.
    */
   async getProductColorById(where: Prisma.ProductColorWhereUniqueInput) {
-    const productColor = await this.prismaDb.productColor.findFirst({
+    const productColor = await this.prismaDb.extended.productColor.findFirst({
       where: { ...where, product: { deletedAt: null } }});
 
     if (!productColor || productColor.deletedAt) {
@@ -260,7 +260,7 @@ export class ProductColorService extends PrismaBaseService<'productColor'> {
    * Ảnh cũ trong imageUrls vẫn được giữ nguyên.
    */
   async restoreProductColor(id: string, vendorId: string) {
-    const productColor = await this.prismaDb.productColor.findFirst({
+    const productColor = await this.prismaDb.extended.productColor.findFirst({
       where: { id, product: { vendorId, deletedAt: null } }});
 
     if (!productColor) {

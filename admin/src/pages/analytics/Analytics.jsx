@@ -358,14 +358,14 @@ export default function Analytics() {
               period === 'custom'
                 ? `Từ ${startDate} đến ${endDate} (${summary.totalOrdersCount} đơn)`
                 : period === 'year'
-                ? `Cả năm ${selectedYear} (${summary.totalOrdersCount} / ${summary.totalSystemOrdersCount || 800} đơn toàn sàn)`
+                ? `Cả năm ${selectedYear} (${summary.totalOrdersCount} / ${summary.totalSystemOrdersCount ?? 0} đơn toàn sàn)`
                 : period === 'quarter'
                 ? `Quý ${selectedQuarter}/${selectedYear} (${summary.totalOrdersCount} đơn)`
                 : period === 'month'
                 ? `Tháng ${selectedMonth}/${selectedYear} (${summary.totalOrdersCount} đơn)`
                 : period === 'week'
                 ? `Tuần gần nhất (${selectedYear})`
-                : `Toàn bộ thời gian (${summary.totalOrdersCount || 800} đơn)`
+                : `Toàn bộ thời gian (${summary.totalOrdersCount ?? 0} đơn)`
             }
           </Badge>
         </div>
@@ -389,7 +389,7 @@ export default function Analytics() {
               <p className="text-xs text-indigo-200/70 mt-1">
                 {summary.vendorFeeRevenue > 0
                   ? `Doanh thu nền tảng = Phí ĐK vendor (${formatVND(summary.vendorFeeRevenue)}) + Thuế sàn ${financeConfig.commissionTaxRate}% (${formatVND(summary.orderTaxRevenue)})`
-                  : `Doanh thu sàn trong kỳ = Thuế sàn ${financeConfig.commissionTaxRate}% trên đơn hoàn tất (${formatVND(summary.orderTaxRevenue)}) • Lũy kế phí ĐK toàn sàn: ${formatVND(summary.allTimeVendorFeeRevenue || 50000000)}`}
+                  : `Doanh thu sàn trong kỳ = Thuế sàn ${financeConfig.commissionTaxRate}% trên đơn hoàn tất (${formatVND(summary.orderTaxRevenue)}) • Lũy kế phí ĐK toàn sàn: ${formatVND(summary.allTimeVendorFeeRevenue ?? 0)}`}
               </p>
             </div>
 
@@ -517,7 +517,7 @@ export default function Analytics() {
           { 
             title: 'Khách Hàng', 
             value: (summary.activeClientsCount || 0).toLocaleString(), 
-            sub: `${summary.activeClientsCount} hoạt động / ${summary.totalClientsCount || 120} tài khoản`, 
+            sub: `${summary.activeClientsCount ?? 0} hoạt động / ${summary.totalClientsCount ?? 0} tài khoản`, 
             icon: Users, 
             color: 'text-cyan-600', 
             bg: 'bg-cyan-100 dark:bg-cyan-950/60' 

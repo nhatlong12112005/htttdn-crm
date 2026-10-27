@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Eye, Edit, Lock, Unlock, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, Edit, Lock, Unlock, Trash2, Loader2, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { usersApi } from '../../api';
 import { formatDate } from '../../utils/formatHelpers';
 import { Button, Input, Select } from '../../components/ui';
@@ -67,6 +67,11 @@ export default function UserManagement() {
       : 'bg-slate-100 text-slate-500 dark:text-slate-400';
   };
 
+  const handleAddClick = () => {
+    setUserToEdit(null);
+    setIsModalOpen(true);
+  };
+
   const handleEditClick = (user) => {
     setUserToEdit(user);
     setIsModalOpen(true);
@@ -90,15 +95,28 @@ export default function UserManagement() {
     }
   };
 
+  const handleDeleteUser = async (user) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa khách hàng "${user.fullName || user.email}"?`)) {
+      try {
+        await usersApi.deleteUser(user.id);
+        fetchUsers();
+      } catch (err) {
+        alert(err.response?.data?.message || 'Không thể xóa tài khoản');
+      }
+    }
+  };
+
   const handleSave = async (savedData) => {
     try {
       if (userToEdit) {
         await usersApi.updateUser(userToEdit.id, savedData);
+      } else {
+        await usersApi.createUser(savedData);
       }
       setIsModalOpen(false);
       fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || 'Lưu thất bại');
+      alert(err.response?.data?.errors?.[0]?.message || err.response?.data?.message || 'Lưu thất bại');
     }
   };
 
@@ -109,6 +127,9 @@ export default function UserManagement() {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">User Management</h1>
           <p className="text-slate-500 dark:text-slate-400">{totalItems} users</p>
         </div>
+        <Button variant="primary" icon={Plus} onClick={handleAddClick}>
+          Thêm khách hàng mới
+        </Button>
       </div>
 
       <div className="bg-white dark:bg-slate-900 transition-colors rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -182,8 +203,12 @@ export default function UserManagement() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-400 mr-3">
-                          {user.fullName?.charAt(0) || '?'}
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-400 mr-3 overflow-hidden shrink-0">
+                          {user.avatarUrl ? (
+                            <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+                          ) : (
+                            user.fullName?.charAt(0) || '?'
+                          )}
                         </div>
                         <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{user.fullName}</span>
                       </div>
@@ -208,9 +233,17 @@ export default function UserManagement() {
                           variant="ghost"
                           size="sm"
                           icon={isLocked ? Unlock : Lock}
-                          className={isLocked ? 'text-slate-400 hover:text-emerald-600' : 'text-slate-400 hover:text-rose-600'}
+                          className={isLocked ? 'text-slate-400 hover:text-emerald-600' : 'text-slate-400 hover:text-amber-600'}
                           onClick={() => handleToggleStatus(user)}
                           title={isLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={Trash2}
+                          className="text-slate-400 hover:text-rose-600"
+                          onClick={() => handleDeleteUser(user)}
+                          title="Xóa khách hàng"
                         />
                       </div>
                     </td>

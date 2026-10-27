@@ -6,6 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Prisma, UserStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { assertEmailAvailable } from '../../common/utils/account-email/account-email.util';
 import {
@@ -27,7 +28,7 @@ const COMMON_ALLOWED_FIELDS = [
 
 const ROLE_ALLOWED_FIELDS: Record<AccountRole, readonly string[]> = {
   client: [...COMMON_ALLOWED_FIELDS, 'dateOfBirth', 'gender'],
-  vendor: [...COMMON_ALLOWED_FIELDS, 'storeName', 'taxId'],
+  vendor: [...COMMON_ALLOWED_FIELDS, 'storeName', 'taxId', 'address'],
   employee: [...COMMON_ALLOWED_FIELDS, 'dateOfBirth', 'gender', 'address'],
   admin: [...COMMON_ALLOWED_FIELDS, 'department'],
 };
@@ -85,14 +86,14 @@ export class UsersService {
       let matchedVendorIds: string[] = [];
       if (search) {
         const hex = search.replace(/^VND-?/i, '');
-        if (/^[0-9a-fA-F-]{1,36}$/.test(hex) && this.prisma.$queryRawUnsafe) {
+        if (/^[0-9a-fA-F-]{1,36}$/.test(hex)) {
           try {
             const rawMatches: { id: string }[] =
-              await this.prisma.$queryRawUnsafe(
-                `SELECT id FROM "Vendor" WHERE (id::text ILIKE $1 OR ('VND-' || UPPER(SUBSTRING(id::text, 1, 8))) ILIKE $2)`,
-                `%${hex}%`,
-                `%${search}%`,
-              );
+              await this.prisma.extended.$queryRaw`
+                SELECT id FROM "Vendor"
+                WHERE id::text ILIKE ${`%${hex}%`}
+                   OR ('VND-' || UPPER(SUBSTRING(id::text, 1, 8))) ILIKE ${`%${search}%`}
+              `;
             matchedVendorIds = rawMatches.map((r) => r.id);
           } catch (error) {
             this.logger.warn(
@@ -120,8 +121,8 @@ export class UsersService {
       };
 
       const [totalItems, list] = await Promise.all([
-        this.prisma.vendor.count({ where }),
-        this.prisma.vendor.findMany({
+        this.prisma.extended.vendor.count({ where }),
+        this.prisma.extended.vendor.findMany({
           where,
           skip,
           take: itemPerPage,
@@ -134,6 +135,7 @@ export class UsersService {
             avatarUrl: true,
             storeName: true,
             taxId: true,
+            address: true,
             status: true,
             createdAt: true,
             updatedAt: true,
@@ -150,7 +152,7 @@ export class UsersService {
             vendorCode: code,
             storeCode: code,
             role: 'vendor',
-            address: v.storeName || '',
+            address: v.address || v.storeName || '',
           };
         }),
         totalItems,
@@ -173,8 +175,8 @@ export class UsersService {
       };
 
       const [totalItems, list] = await Promise.all([
-        this.prisma.admin.count({ where }),
-        this.prisma.admin.findMany({
+        this.prisma.extended.admin.count({ where }),
+        this.prisma.extended.admin.findMany({
           where,
           skip,
           take: itemPerPage,
@@ -218,8 +220,8 @@ export class UsersService {
       };
 
       const [totalItems, list] = await Promise.all([
-        this.prisma.employee.count({ where }),
-        this.prisma.employee.findMany({
+        this.prisma.extended.employee.count({ where }),
+        this.prisma.extended.employee.findMany({
           where,
           skip,
           take: itemPerPage,
@@ -254,6 +256,7 @@ export class UsersService {
 
     // Default: role is 'customer' / 'client' or general query
     const where: Prisma.ClientWhereInput = {
+      deletedAt: null,
       ...(status ? { status } : {}),
       ...(search
         ? {
@@ -267,8 +270,8 @@ export class UsersService {
     };
 
     const [totalItems, list] = await Promise.all([
-      this.prisma.client.count({ where }),
-      this.prisma.client.findMany({
+      this.prisma.extended.client.count({ where }),
+      this.prisma.extended.client.findMany({
         where,
         skip,
         take: itemPerPage,
@@ -325,8 +328,87 @@ export class UsersService {
     );
   }
 
+  async createUser(data: Record<string, any>) {
+    const email = (data.email || '').trim().toLowerCase();
+    const fullName = (data.fullName || '').trim();
+    if (!fullName || !email) {
+      throw new BadRequestException('Họ tên và Email là bắt buộc');
+    }
+
+    await assertEmailAvailable(this.prisma.extended, email);
+
+    const rawPassword = data.password?.trim() || 'admin123';
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const roleInput = (data.role || 'customer').toLowerCase();
+    const status: UserStatus =
+      data.status === 'inactive' ? UserStatus.inactive : UserStatus.active;
+
+    if (roleInput === 'vendor' || roleInput === 'seller') {
+      const createdVendor = await this.prisma.extended.vendor.create({
+        data: {
+          fullName,
+          email,
+          password: hashedPassword,
+          phone: data.phone?.trim() || null,
+          avatarUrl: data.avatarUrl?.trim() || null,
+          storeName: data.storeName?.trim() || fullName,
+          taxId: data.taxId?.trim() || null,
+          address: data.address?.trim() || null,
+          status,
+          approvalStatus: 'approved',
+          approvedAt: new Date(),
+        },
+      });
+      return this.getUser(createdVendor.id);
+    }
+
+    if (roleInput === 'admin') {
+      const createdAdmin = await this.prisma.extended.admin.create({
+        data: {
+          fullName,
+          email,
+          password: hashedPassword,
+          phone: data.phone?.trim() || null,
+          avatarUrl: data.avatarUrl?.trim() || null,
+          department: data.department?.trim() || null,
+          status,
+        },
+      });
+      return this.getUser(createdAdmin.id);
+    }
+
+    const dob =
+      typeof data.dateOfBirth === 'string' && data.dateOfBirth.trim()
+        ? new Date(`${data.dateOfBirth.trim().slice(0, 10)}T00:00:00.000Z`)
+        : null;
+
+    const createdClient = await this.prisma.extended.client.create({
+      data: {
+        fullName,
+        email,
+        password: hashedPassword,
+        phone: data.phone?.trim() || null,
+        avatarUrl: data.avatarUrl?.trim() || null,
+        gender: data.gender || null,
+        dateOfBirth: dob,
+        status,
+      },
+    });
+
+    if (data.address?.trim()) {
+      await this.syncClientDefaultAddress(
+        createdClient.id,
+        createdClient.fullName,
+        createdClient.phone,
+        data.address.trim(),
+      );
+    }
+
+    return this.getUser(createdClient.id);
+  }
+
   async getUser(id: string) {
-    const client = await this.prisma.client.findUnique({
+    const client = await this.prisma.extended.client.findUnique({
       where: { id },
       select: {
         id: true,
@@ -371,7 +453,7 @@ export class UsersService {
       };
     }
 
-    const vendor = await this.prisma.vendor.findUnique({
+    const vendor = await this.prisma.extended.vendor.findUnique({
       where: { id },
       select: {
         id: true,
@@ -381,6 +463,7 @@ export class UsersService {
         avatarUrl: true,
         storeName: true,
         taxId: true,
+        address: true,
         status: true,
         createdAt: true,
       },
@@ -391,12 +474,12 @@ export class UsersService {
         ...vendor,
         userCode: code,
         vendorCode: code,
-        address: vendor.storeName || '',
+        address: vendor.address || vendor.storeName || '',
         role: 'vendor',
       };
     }
 
-    const admin = await this.prisma.admin.findUnique({
+    const admin = await this.prisma.extended.admin.findUnique({
       where: { id },
       select: {
         id: true,
@@ -417,7 +500,7 @@ export class UsersService {
       };
     }
 
-    const employee = await this.prisma.employee.findUnique({
+    const employee = await this.prisma.extended.employee.findUnique({
       where: { id },
       select: {
         id: true,
@@ -461,7 +544,7 @@ export class UsersService {
     }
 
     if (targetRole === 'admin') {
-      const allActiveAdmins = await this.prisma.admin.findMany({
+      const allActiveAdmins = await this.prisma.extended.admin.findMany({
         where: { status: 'active' },
         select: { id: true },
       });
@@ -482,21 +565,21 @@ export class UsersService {
     phone: string | null,
     address: string | null,
   ) {
-    if (!this.prisma.clientAddress) return;
+    if (!this.prisma.extended.clientAddress) return;
     const trimmed = address ? String(address).trim() : '';
     if (!trimmed) return;
 
-    const existingDefault = await this.prisma.clientAddress.findFirst({
+    const existingDefault = await this.prisma.extended.clientAddress.findFirst({
       where: { clientId, isDefault: true, deletedAt: null },
     });
 
     if (existingDefault) {
-      await this.prisma.clientAddress.update({
+      await this.prisma.extended.clientAddress.update({
         where: { id: existingDefault.id },
         data: { addressLine: trimmed },
       });
     } else {
-      await this.prisma.clientAddress.create({
+      await this.prisma.extended.clientAddress.create({
         data: {
           clientId,
           receiverName: fullName,
@@ -550,12 +633,12 @@ export class UsersService {
 
     const roles: AccountRole[] = ['client', 'vendor', 'employee', 'admin'];
     for (const role of roles) {
-      const delegate = (this.prisma as any)[role];
+      const delegate = (this.prisma.extended as any)[role];
       const existing = await delegate.findUnique({ where: { id } });
       if (!existing) continue;
 
       const sourceWithAddress =
-        role === 'employee' && address !== undefined
+        (role === 'employee' || role === 'vendor') && address !== undefined
           ? { ...updateData, address }
           : updateData;
 
@@ -563,7 +646,7 @@ export class UsersService {
       await this.assertCanChangeStatus(id, role, roleData.status, currentUser);
 
       if (roleData.email) {
-        await assertEmailAvailable(this.prisma, roleData.email, { role, id });
+        await assertEmailAvailable(this.prisma.extended, roleData.email, { role, id });
       }
       if (roleData.status && existing.deletedAt) {
         roleData.deletedAt = null;
@@ -607,10 +690,25 @@ export class UsersService {
     return this.updateUser(id, { status }, currentUser);
   }
 
-  /**
-   * Tài khoản chỉ khóa (status = inactive), không xóa.
-   */
   async deleteUser(id: string, currentUser?: UserInfo) {
-    return this.updateUserStatus(id, 'inactive', currentUser);
+    const roles: AccountRole[] = ['client', 'vendor', 'employee', 'admin'];
+    for (const role of roles) {
+      const delegate = (this.prisma.extended as any)[role];
+      const existing = await delegate.findUnique({ where: { id } });
+      if (!existing) continue;
+
+      await this.assertCanChangeStatus(id, role, UserStatus.inactive, currentUser);
+      const updated = await delegate.update({
+        where: { id },
+        data: {
+          status: UserStatus.inactive,
+          deletedAt: new Date(),
+        },
+      });
+      this.realtime?.disconnectUser(id);
+      const { password: _, ...rest } = updated;
+      return rest;
+    }
+    throw new NotFoundException('Người dùng không tồn tại');
   }
 }

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Modal, Button, Input, Select } from '../../components/ui';
-import { employeesApi } from '../../api';
+import { employeesApi, usersApi } from '../../api';
 import { 
   User, Mail, Phone, Lock, DollarSign, Clock, ShieldCheck, 
-  Building2, Briefcase, Calendar, MapPin, CreditCard, AlertCircle
+  Building2, Briefcase, Calendar, MapPin, CreditCard, AlertCircle, Upload, Trash2, Loader2
 } from 'lucide-react';
 
 const PERMISSION_OPTIONS = [
@@ -38,6 +38,7 @@ export default function EmployeeFormModal({ isOpen, onClose, onSave, employeeToE
         email: employeeToEdit.email || '',
         password: '',
         phone: employeeToEdit.phone || '',
+        avatarUrl: employeeToEdit.avatarUrl || '',
         citizenId: employeeToEdit.citizenId || '',
         address: employeeToEdit.address || '',
         department: employeeToEdit.department || (departments[0] || 'Phòng Quản lý & Vận hành Đơn hàng'),
@@ -68,6 +69,7 @@ export default function EmployeeFormModal({ isOpen, onClose, onSave, employeeToE
       email: '',
       password: '',
       phone: '',
+      avatarUrl: '',
       citizenId: '',
       address: '',
       department: departments[0] || 'Phòng Quản lý & Vận hành Đơn hàng',
@@ -96,9 +98,27 @@ export default function EmployeeFormModal({ isOpen, onClose, onSave, employeeToE
 
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const handleTextChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleAvatarFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingAvatar(true);
+      const uploadedUrl = await usersApi.uploadAvatar(file);
+      if (uploadedUrl) {
+        setFormData((prev) => ({ ...prev, avatarUrl: uploadedUrl }));
+      }
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Không thể tải ảnh đại diện lên');
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
+    }
   };
 
   const handlePermissionToggle = (key) => {
@@ -134,6 +154,7 @@ export default function EmployeeFormModal({ isOpen, onClose, onSave, employeeToE
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone || null,
+        avatarUrl: formData.avatarUrl?.trim() || null,
         citizenId: formData.citizenId || null,
         address: formData.address || null,
         department: formData.department,
@@ -269,6 +290,41 @@ export default function EmployeeFormModal({ isOpen, onClose, onSave, employeeToE
                 onChange={(e) => handleTextChange('address', e.target.value)}
                 placeholder="Số nhà, đường, quận/huyện..."
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Ảnh Đại Diện
+              </label>
+              <div className="flex items-center gap-3">
+                {formData.avatarUrl && (
+                  <img
+                    src={formData.avatarUrl}
+                    alt={formData.fullName || 'Avatar'}
+                    className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                  />
+                )}
+                <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors">
+                  {uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <Upload className="w-4 h-4 text-indigo-600" />}
+                  {uploadingAvatar ? 'Đang tải...' : 'Chọn ảnh'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileChange}
+                    disabled={uploadingAvatar}
+                    className="hidden"
+                  />
+                </label>
+                {formData.avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={() => handleTextChange('avatarUrl', '')}
+                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Xóa ảnh
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

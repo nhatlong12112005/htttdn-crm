@@ -127,19 +127,19 @@ export class ReportsService {
                 productVariant: {
                   productColor: { product: { vendorId } }}}}}
         : {})};
-    const buyers = await this.prisma.order.findMany({
+    const buyers = await this.prisma.extended.order.findMany({
       where: orderScope,
       select: { clientId: true },
       distinct: ['clientId']});
     const customerIds = buyers.map((buyer) => buyer.clientId);
-    const customers = await this.prisma.client.findMany({
+    const customers = await this.prisma.extended.client.findMany({
       where: {
         
         deletedAt: null,
         ...(vendorId ? { id: { in: customerIds } } : {})},
       select: { id: true, dateOfBirth: true, gender: true }});
     const reportCustomerIds = customers.map((customer) => customer.id);
-    const favorites = await this.prisma.productFavorite.findMany({
+    const favorites = await this.prisma.extended.productFavorite.findMany({
       where: {
         clientId: { in: reportCustomerIds },
         ...(Object.keys(dateWhere).length ? { createdAt: dateWhere } : {}),
@@ -150,7 +150,7 @@ export class ReportsService {
             id: true,
             name: true,
             category: { select: { id: true, name: true } }}}}});
-    const details = await this.prisma.orderDetail.findMany({
+    const details = await this.prisma.extended.orderDetail.findMany({
       where: {
         order: orderScope,
         ...(vendorId
@@ -246,7 +246,7 @@ export class ReportsService {
     const feePerVendor = query.vendorRegistrationFee ? Number(query.vendorRegistrationFee) : currentTier.vendorRegistrationFee;
     const taxRatePercent = query.commissionTaxRate ? Number(query.commissionTaxRate) : currentTier.commissionTaxRate;
 
-    const orderDateRange = await this.prisma.order.aggregate({
+    const orderDateRange = await this.prisma.extended.order.aggregate({
       _min: { createdAt: true },
       _max: { createdAt: true },
     });
@@ -444,26 +444,28 @@ export class ReportsService {
       totalSystemOrdersCount,
       newVendorsInPeriod,
     ] = await Promise.all([
-      this.prisma.vendor.count({
+      this.prisma.extended.vendor.count({
         where: { deletedAt: null, status: 'active' },
       }),
-      this.prisma.client.count({
+      this.prisma.extended.client.count({
         where: { deletedAt: null, status: 'active' },
       }),
-      this.prisma.client.count({
+      this.prisma.extended.client.count({
         where: { deletedAt: null },
       }),
-      this.prisma.product.count({ where: { deletedAt: null } }),
-      this.prisma.order.count(),
-      this.prisma.vendor.count({
+      this.prisma.extended.product.count({ where: { deletedAt: null } }),
+      this.prisma.extended.order.count(),
+      this.prisma.extended.vendor.count({
         where: {
           deletedAt: null,
+          status: 'active',
+          approvalStatus: 'approved',
           createdAt: { gte: startDate, lte: endDate },
         },
       }),
     ]);
 
-    const orders = await this.prisma.order.findMany({
+    const orders = await this.prisma.extended.order.findMany({
       where: {
         createdAt: {
           gte: startDate,
@@ -583,9 +585,19 @@ export class ReportsService {
           bucket.adminTax += tax;
         }
 
+        const orderSubtotal = Number(order.subtotalAmount || 0);
+        const orderDiscount = Number(order.discountAmount || 0);
+        const netRatio =
+          orderSubtotal > 0 && orderDiscount > 0
+            ? Math.max(0, orderSubtotal - orderDiscount) / orderSubtotal
+            : 1;
+
         for (const detail of order.details) {
           const product = detail.productVariant?.productColor?.product;
           if (product) {
+            const itemRevenue = Math.round(
+              Number(detail.price || 0) * (detail.quantity || 1) * netRatio,
+            );
             const pId = product.id;
             const pItem = productMap.get(pId) || {
               id: pId,
@@ -595,7 +607,7 @@ export class ReportsService {
               revenue: 0,
             };
             pItem.quantity += detail.quantity || 1;
-            pItem.revenue += Number(detail.price || 0) * (detail.quantity || 1);
+            pItem.revenue += itemRevenue;
             productMap.set(pId, pItem);
 
             const vendor = product.vendor;
@@ -611,7 +623,6 @@ export class ReportsService {
                 itemsSold: 0,
                 tax: 0,
               };
-              const itemRevenue = Number(detail.price || 0) * (detail.quantity || 1);
               vItem.sales += itemRevenue;
               vItem.orderCount.add(order.id);
               vItem.itemsSold += detail.quantity || 1;
@@ -629,9 +640,11 @@ export class ReportsService {
     }
 
     const isAllTime = period === 'all';
-    const periodVendors = await this.prisma.vendor.findMany({
+    const periodVendors = await this.prisma.extended.vendor.findMany({
       where: {
         deletedAt: null,
+        status: 'active',
+        approvalStatus: 'approved',
         ...(isAllTime ? {} : { createdAt: { gte: startDate, lte: endDate } }),
       },
       select: { id: true, createdAt: true, subscriptionFee: true },
@@ -644,8 +657,12 @@ export class ReportsService {
       vendorFeeRevenue += fee;
     }
 
-    const allVendors = await this.prisma.vendor.findMany({
-      where: { deletedAt: null },
+    const allVendors = await this.prisma.extended.vendor.findMany({
+      where: {
+        deletedAt: null,
+        status: 'active',
+        approvalStatus: 'approved',
+      },
       select: { id: true, createdAt: true, subscriptionFee: true },
     });
     let allTimeVendorFeeRevenue = 0;
@@ -793,7 +810,7 @@ export class ReportsService {
     ];
 
     // 1. Fetch all clients
-    const clients = await this.prisma.client.findMany({
+    const clients = await this.prisma.extended.client.findMany({
       where: { deletedAt: null },
       select: {
         id: true,
@@ -848,20 +865,27 @@ export class ReportsService {
     const dominantGroup = [...ageGroups].sort((a, b) => b.count - a.count)[0];
 
     // Gender distribution
+    const genderLabels: Record<string, string> = {
+      male: 'Nam',
+      female: 'Nữ',
+      other: 'Khác',
+      prefer_not_to_say: 'Không tiết lộ',
+      unknown: 'Chưa cập nhật',
+    };
     const genderMap: Record<string, number> = {};
     for (const c of clients) {
-      const g = c.gender || 'other';
+      const g = c.gender || 'unknown';
       genderMap[g] = (genderMap[g] || 0) + 1;
     }
     const genderStats = Object.entries(genderMap).map(([gender, count]) => ({
       gender,
-      label: gender === 'male' ? 'Nam' : gender === 'female' ? 'Nữ' : 'Khác',
+      label: genderLabels[gender] || 'Khác',
       count,
       percentage: Number(((count / (clients.length || 1)) * 100).toFixed(1)),
     }));
 
     // 2. Favorites: ProductFavorite -> Product -> Vendor
-    const favorites = await this.prisma.productFavorite.findMany({
+    const favorites = await this.prisma.extended.productFavorite.findMany({
       select: {
         clientId: true,
         productId: true,
@@ -916,16 +940,24 @@ export class ReportsService {
       .slice(0, 10);
 
     // 3. Purchases: OrderDetail -> ProductVariant -> ProductColor -> Product -> Vendor
-    const orderDetails = await this.prisma.orderDetail.findMany({
+    const orderDetails = await this.prisma.extended.orderDetail.findMany({
       where: {
         order: {
-          status: { in: ['completed', 'shipping', 'processing', 'confirmed'] },
+          status: OrderStatus.completed,
         },
       },
       select: {
         quantity: true,
         price: true,
-        order: { select: { id: true, clientId: true, status: true } },
+        order: {
+          select: {
+            id: true,
+            clientId: true,
+            status: true,
+            subtotalAmount: true,
+            discountAmount: true,
+          },
+        },
         productVariant: {
           select: {
             productColor: {
@@ -956,7 +988,13 @@ export class ReportsService {
       if (!v) continue;
 
       const clientId = d.order.clientId;
-      const lineTotal = Number(d.price) * d.quantity;
+      const orderSubtotal = Number(d.order.subtotalAmount || 0);
+      const orderDiscount = Number(d.order.discountAmount || 0);
+      const netRatio =
+        orderSubtotal > 0 && orderDiscount > 0
+          ? Math.max(0, orderSubtotal - orderDiscount) / orderSubtotal
+          : 1;
+      const lineTotal = Math.round(Number(d.price) * d.quantity * netRatio);
 
       // Vendor stats
       if (!vendorPurchaseMap.has(v.id)) {
@@ -964,14 +1002,14 @@ export class ReportsService {
           vendorId: v.id,
           storeName: v.storeName || v.fullName,
           avatarUrl: v.avatarUrl,
-          purchaseCount: 0,
+          ordersSet: new Set<string>(),
           totalUnits: 0,
           totalRevenue: 0,
           buyers: new Set<string>(),
         });
       }
       const vItem = vendorPurchaseMap.get(v.id);
-      vItem.purchaseCount++;
+      vItem.ordersSet.add(d.order.id);
       vItem.totalUnits += d.quantity;
       vItem.totalRevenue += lineTotal;
       vItem.buyers.add(clientId);
@@ -997,7 +1035,7 @@ export class ReportsService {
         vendorId: v.vendorId,
         storeName: v.storeName,
         avatarUrl: v.avatarUrl,
-        purchaseCount: v.purchaseCount,
+        purchaseCount: v.ordersSet.size,
         totalUnits: v.totalUnits,
         totalRevenue: Math.round(v.totalRevenue),
         uniqueBuyersCount: v.buyers.size,
@@ -1006,7 +1044,7 @@ export class ReportsService {
       .slice(0, 10);
 
     // 4. Cart stats
-    const cartItems = await this.prisma.cartItem.findMany({
+    const cartItems = await this.prisma.extended.cartItem.findMany({
       select: {
         quantity: true,
         cart: { select: { clientId: true } },
@@ -1076,8 +1114,14 @@ export class ReportsService {
       for (const d of orderDetails) {
         if (clientIds.has(d.order.clientId) && d.productVariant?.productColor?.product?.vendor) {
           const name = d.productVariant.productColor.product.vendor.storeName || d.productVariant.productColor.product.vendor.fullName;
+          const orderSubtotal = Number(d.order.subtotalAmount || 0);
+          const orderDiscount = Number(d.order.discountAmount || 0);
+          const netRatio =
+            orderSubtotal > 0 && orderDiscount > 0
+              ? Math.max(0, orderSubtotal - orderDiscount) / orderSubtotal
+              : 1;
           vendorBuyInGroup.set(name, (vendorBuyInGroup.get(name) || 0) + d.quantity);
-          totalSpentInGroup += Number(d.price) * d.quantity;
+          totalSpentInGroup += Math.round(Number(d.price) * d.quantity * netRatio);
         }
       }
 
@@ -1141,9 +1185,12 @@ export class ReportsService {
     return {
       overview: {
         totalClients: clients.length,
+        clientsWithAgeCount: ageCount,
+        unknownAgeCount: clients.length - ageCount,
         averageAge,
         dominantGroup: {
-          label: dominantGroup?.label || '',
+          key: dominantGroup && dominantGroup.count > 0 ? dominantGroup.key : '',
+          label: dominantGroup && dominantGroup.count > 0 ? dominantGroup.label : 'Chưa xác định',
           count: dominantGroup?.count || 0,
           percentage: dominantGroup?.percentage || 0,
         },

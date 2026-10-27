@@ -22,7 +22,7 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
 
     await this.getActiveProductColor(productColorId, vendorId);
 
-    const existing = await this.prismaDb.productVariant.findUnique({
+    const existing = await this.prismaDb.extended.productVariant.findUnique({
       where: { productColorId_size: { productColorId, size } },
     });
 
@@ -97,7 +97,7 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
   }
 
   private async emitForColor(productColorId: string, vendorId: string) {
-    const color = await this.prismaDb.productColor.findUnique({
+    const color = await this.prismaDb.extended.productColor.findUnique({
       where: { id: productColorId }, select: { productId: true },
     });
     if (color) this.realtime.emitProductUpdated(color.productId, vendorId);
@@ -148,7 +148,7 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
     includeDeleted = false,
   ) {
     // Bản ghi đã xóa mềm vẫn nằm trong ràng buộc unique, nên khi đổi size phải tính cả chúng.
-    const duplicate = await this.prismaDb.productVariant.findFirst({
+    const duplicate = await this.prismaDb.extended.productVariant.findFirst({
       where: {
         productColorId,
         size,

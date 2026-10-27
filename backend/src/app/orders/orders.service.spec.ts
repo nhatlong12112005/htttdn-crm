@@ -58,6 +58,7 @@ describe('OrdersService', () => {
       $transaction: jest.fn(
         (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
       )};
+    Object.assign(prisma, { extended: prisma, extendedTransaction: prisma.$transaction });
     const vouchers = {
       calculate: jest.fn().mockResolvedValue({
         subtotalAmount: new Prisma.Decimal(100),
@@ -156,6 +157,7 @@ describe('OrdersService', () => {
       $transaction: jest.fn(
         (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
       )};
+    Object.assign(prisma, { extended: prisma, extendedTransaction: prisma.$transaction });
     const realtime = {
       emitToUser: jest.fn(),
       emitToAdmins: jest.fn(),

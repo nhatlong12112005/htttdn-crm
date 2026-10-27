@@ -11,9 +11,6 @@ export class PrismaBaseService<
     private readonly model: K,
   ) {}
 
-  protected get client(): PrismaClient[K] {
-    return this.prismaService[this.model];
-  }
   protected get extended(): ExtendedClient[K] {
     return this.prismaService.extended[this.model];
   }
