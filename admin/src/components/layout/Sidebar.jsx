@@ -3,18 +3,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   LayoutDashboard, 
   Users, 
-  Store,
   Tags, 
   ShoppingCart, 
   Ticket,
   Star,
   LineChart,
   LogOut,
-  UserCheck,
-  Truck,
-  Calculator,
   ClipboardList,
-  ShieldCheck,
   PieChart,
   Sparkles
 } from 'lucide-react';
@@ -29,21 +24,16 @@ const navGroups = [
     ],
   },
   {
-    title: 'QUẢN LÝ ĐỐI TÁC & BÁN HÀNG',
+    title: 'BÁN HÀNG',
     items: [
-      { name: 'Duyệt Đăng ký Vendor', path: '/vendor-registrations', icon: ShieldCheck },
-      { name: 'Danh sách Vendor', path: '/vendors', icon: Store },
       { name: 'Quản lý Đơn hàng', path: '/orders', icon: ShoppingCart },
-      { name: 'Vận chuyển & Điều phối', path: '/shipping', icon: Truck },
       { name: 'Danh mục', path: '/categories', icon: Tags },
       { name: 'Mã giảm giá', path: '/vouchers', icon: Ticket },
     ],
   },
   {
-    title: 'NHÂN SỰ & VẬN HÀNH CRM',
+    title: 'QUẢN LÝ KHÁCH HÀNG (CRM)',
     items: [
-      { name: 'Nhân sự & Nhân viên', path: '/employees', icon: UserCheck },
-      { name: 'Bảng lương & Chấm công', path: '/payroll', icon: Calculator },
       { name: 'Khảo sát CRM', path: '/surveys', icon: ClipboardList },
       { name: 'Khách hàng', path: '/users', icon: Users },
       { name: 'Đánh giá sản phẩm', path: '/reviews', icon: Star },

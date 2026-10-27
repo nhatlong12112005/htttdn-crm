@@ -32,9 +32,6 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { UsersModule } from './users/users.module';
-import { EmployeesModule } from './employees/employees.module';
-import { ShippingModule } from './shipping/shipping.module';
-import { PayrollModule } from './payroll/payroll.module';
 
 @Module({
   imports: [
@@ -65,9 +62,6 @@ import { PayrollModule } from './payroll/payroll.module';
     NotificationsModule,
     ReportsModule,
     AddressesModule,
-    EmployeesModule,
-    ShippingModule,
-    PayrollModule,
   ],
   controllers: [AppController],
   providers: [
