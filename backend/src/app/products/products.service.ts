@@ -10,10 +10,7 @@ import { PaginationUtilService } from 'src/common/utils/paginaton-util/pagintion
 import { QueryUtilService } from 'src/common/utils/query-util/query-util.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { StringUtilService } from 'src/common/utils/string-util/string-util.service';
-import {
-  GetProductsPaginationDto,
-  GetVendorProductsPaginationDto,
-} from './dto/get-product.dto';
+import { GetProductsPaginationDto } from './dto/get-product.dto';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -21,15 +18,6 @@ import { RealtimeService } from '../realtime/realtime.service';
 const productRelations = {
   category: {
     select: { id: true, name: true, slug: true },
-  },
-  vendor: {
-    select: {
-      id: true,
-      storeName: true,
-      fullName: true,
-      avatarUrl: true,
-      createdAt: true,
-    },
   },
   colors: {
     where: { deletedAt: null },
@@ -44,9 +32,8 @@ const productRelations = {
 } satisfies Prisma.ProductInclude;
 
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Số ảnh tối đa mỗi màu, khớp với ProductColorService. */
 const MAX_IMAGES_PER_COLOR = 20;
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
@@ -65,7 +52,7 @@ export class ProductService extends PrismaBaseService<'product'> {
     super(prismaService, 'product');
   }
 
-  async createProduct(createProductDto: CreateProductDto, vendorId?: string) {
+  async createProduct(createProductDto: CreateProductDto) {
     const slug = this.stringUtilService.toSlug(createProductDto.name);
 
     const existingProduct = await this.extended.findUnique({
@@ -99,7 +86,6 @@ export class ProductService extends PrismaBaseService<'product'> {
         description: createProductDto.description,
         status: createProductDto.status,
         category: categoryConnect,
-        ...(vendorId && { vendor: { connect: { id: vendorId } } }),
         slug,
         ...(hasColors && {
           colors: {
@@ -119,22 +105,19 @@ export class ProductService extends PrismaBaseService<'product'> {
       },
       include: productRelations,
     });
-    this.realtime.emitProductUpdated(created.id, created.vendorId);
+    this.realtime.emitProductUpdated(created.id, null);
     return created;
   }
+
   async getProducts(query: GetProductsPaginationDto) {
-    const { category, vendorId, ...rest } = query;
+    const { category, ...rest } = query;
 
     return this.findProducts(rest, {
       status: ProductStatus.active,
-      ...(vendorId ? { vendorId } : {}),
       category: this.buildCategoryCondition(category),
     });
   }
 
-  /**
-   * Điều kiện lọc danh mục theo slug hoặc UUID, dùng chung cho trang public và admin.
-   */
   private buildCategoryCondition(category?: string): Prisma.CategoryWhereInput {
     if (!category || category === 'all') {
       return { deletedAt: null };
@@ -168,7 +151,6 @@ export class ProductService extends PrismaBaseService<'product'> {
     });
 
     const variantIds = topVariants.map((tv) => tv.productVariantId);
-    // Sales history can reference a soft-deleted variant or color.
     const variants = variantIds.length
       ? await this.prismaService.extended.$queryRaw<
           Array<{ id: string; productId: string }>
@@ -253,21 +235,9 @@ export class ProductService extends PrismaBaseService<'product'> {
     categorySlug: string,
     query: GetProductsPaginationDto,
   ) {
-    const { vendorId, ...rest } = query as any;
-    return this.findProducts(rest, {
-      status: ProductStatus.active,
-      ...(vendorId ? { vendorId } : {}),
-      category: { slug: categorySlug, deletedAt: null },
-    });
-  }
-
-  async getVendorProducts(
-    { status, ...query }: GetVendorProductsPaginationDto,
-    vendorId: string,
-  ) {
     return this.findProducts(query, {
-      vendorId,
-      ...(status ? { status } : {}),
+      status: ProductStatus.active,
+      category: { slug: categorySlug, deletedAt: null },
     });
   }
 
@@ -308,26 +278,28 @@ export class ProductService extends PrismaBaseService<'product'> {
   }
 
   async favoriteStatus(productId: string, clientId: string) {
-    const favorite = await this.prismaService.extended.productFavorite.findUnique({
-      where: { clientId_productId: { clientId, productId } },
-      select: { id: true },
-    });
+    const favorite =
+      await this.prismaService.extended.productFavorite.findUnique({
+        where: { clientId_productId: { clientId, productId } },
+        select: { id: true },
+      });
     return { productId, favorited: Boolean(favorite) };
   }
 
   async listFavorites(clientId: string) {
-    const favorites = await this.prismaService.extended.productFavorite.findMany({
-      where: {
-        clientId,
-        product: {
-          deletedAt: null,
-          status: ProductStatus.active,
-          category: { deletedAt: null },
+    const favorites =
+      await this.prismaService.extended.productFavorite.findMany({
+        where: {
+          clientId,
+          product: {
+            deletedAt: null,
+            status: ProductStatus.active,
+            category: { deletedAt: null },
+          },
         },
-      },
-      include: { product: { include: productRelations } },
-      orderBy: { createdAt: 'desc' },
-    });
+        include: { product: { include: productRelations } },
+        orderBy: { createdAt: 'desc' },
+      });
     return favorites.map((favorite) => ({
       id: favorite.id,
       createdAt: favorite.createdAt,
@@ -405,7 +377,6 @@ export class ProductService extends PrismaBaseService<'product'> {
       orderBy: {
         createdAt: 'desc',
       },
-
       include: productRelations,
     });
 
@@ -436,13 +407,9 @@ export class ProductService extends PrismaBaseService<'product'> {
       totalStock: variants.reduce((total, variant) => total + variant.stock, 0),
     };
   }
-  async updateProduct(
-    id: string,
-    data: UpdateProductDto,
-    vendorId?: string,
-    isAdmin = false,
-  ) {
-    await this.assertCanManage(id, vendorId, isAdmin);
+
+  async updateProduct(id: string, data: UpdateProductDto) {
+    await this.assertExists(id);
 
     const categoryConnect =
       data.category ??
@@ -452,7 +419,6 @@ export class ProductService extends PrismaBaseService<'product'> {
           }
         : undefined);
 
-    // Toàn bộ thay đổi sản phẩm, màu và biến thể nằm trong một transaction để không bị cập nhật dở.
     const updated = await this.prismaService.extendedTransaction(async (tx) => {
       const product = await tx.product.update({
         where: { id },
@@ -473,12 +439,12 @@ export class ProductService extends PrismaBaseService<'product'> {
       return product;
     });
 
-    this.realtime.emitProductUpdated(updated.id, updated.vendorId);
+    this.realtime.emitProductUpdated(updated.id, null);
     return updated;
   }
 
-  async deleteProduct(id: string, vendorId?: string, isAdmin = false) {
-    await this.assertCanManage(id, vendorId, isAdmin);
+  async deleteProduct(id: string) {
+    await this.assertExists(id);
 
     const deleted = await this.prismaService.extended.product.update({
       where: { id },
@@ -487,23 +453,11 @@ export class ProductService extends PrismaBaseService<'product'> {
         deletedAt: new Date(),
       },
     });
-    this.realtime.emitProductUpdated(deleted.id, deleted.vendorId);
+    this.realtime.emitProductUpdated(deleted.id, null);
     return deleted;
   }
 
-  /**
-   * Vendor chỉ được thao tác sản phẩm của mình, admin được thao tác mọi sản phẩm chưa xóa.
-   */
-  private async assertCanManage(
-    id: string,
-    vendorId: string | undefined,
-    isAdmin: boolean,
-  ) {
-    if (!isAdmin) {
-      await this.getOwnedProduct(id, vendorId!);
-      return;
-    }
-
+  private async assertExists(id: string) {
     const product = await this.extended.findFirst({
       where: { id },
       select: { id: true },
@@ -513,10 +467,6 @@ export class ProductService extends PrismaBaseService<'product'> {
     }
   }
 
-  /**
-   * Đồng bộ màu và biến thể gửi lên với sản phẩm.
-   * Mọi id màu/biến thể đều phải thuộc đúng sản phẩm, tránh sửa dữ liệu của sản phẩm khác.
-   */
   private async syncColors(
     tx: Prisma.TransactionClient,
     productId: string,
@@ -552,7 +502,6 @@ export class ProductService extends PrismaBaseService<'product'> {
           );
         }
 
-        // Màu đã xóa mềm vẫn chịu ràng buộc unique nên được khôi phục thay vì tạo mới.
         const saved = existing
           ? await tx.productColor.update({
               where: { id: existing.id },
@@ -604,7 +553,6 @@ export class ProductService extends PrismaBaseService<'product'> {
       );
     }
 
-    // Size đã xóa mềm vẫn chịu ràng buộc unique nên được khôi phục thay vì tạo mới.
     if (existing) {
       await tx.productVariant.update({
         where: { id: existing.id },
@@ -618,9 +566,6 @@ export class ProductService extends PrismaBaseService<'product'> {
     });
   }
 
-  /**
-   * Loại URL ảnh trống/trùng và giới hạn số ảnh mỗi màu, giống ProductColorService.
-   */
   private normalizeImages(imageUrls?: string[]): string[] {
     const unique = [
       ...new Set((imageUrls ?? []).map((url) => url.trim()).filter(Boolean)),
@@ -631,18 +576,5 @@ export class ProductService extends PrismaBaseService<'product'> {
       );
     }
     return unique;
-  }
-
-  private async getOwnedProduct(id: string, vendorId: string) {
-    const product = await this.extended.findFirst({
-      where: { id, vendorId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      throw new NotFoundException('Sản phẩm không tồn tại');
-    }
-
-    return product;
   }
 }

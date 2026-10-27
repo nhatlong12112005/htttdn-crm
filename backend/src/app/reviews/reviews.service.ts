@@ -87,7 +87,9 @@ export class ReviewsService {
           rating: dto.rating,
           content: dto.content,
         },
-        include: { client: { select: { id: true, fullName: true, avatarUrl: true } } },
+        include: {
+          client: { select: { id: true, fullName: true, avatarUrl: true } },
+        },
       });
     }
 
@@ -107,7 +109,9 @@ export class ReviewsService {
         rating: dto.rating,
         content: dto.content,
       },
-      include: { client: { select: { id: true, fullName: true, avatarUrl: true } } },
+      include: {
+        client: { select: { id: true, fullName: true, avatarUrl: true } },
+      },
     });
   }
 

@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  formatPaginatedList,
   normalizePagination,
 } from 'src/common/utils/paginaton-util/pagintion-util.service';
-import { OrderStatus, Prisma} from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -38,12 +37,15 @@ export class ReportsService {
         if (Array.isArray(parsed?.history) && parsed.history.length > 0) {
           return parsed.history.sort(
             (a: FinanceConfigTier, b: FinanceConfigTier) =>
-              new Date(a.effectiveFrom).getTime() - new Date(b.effectiveFrom).getTime(),
+              new Date(a.effectiveFrom).getTime() -
+              new Date(b.effectiveFrom).getTime(),
           );
         }
       }
     } catch (e) {
-      this.logger.warn(`Error reading finance config history: ${(e as Error).message}`);
+      this.logger.warn(
+        `Error reading finance config history: ${(e as Error).message}`,
+      );
     }
     return [
       {
@@ -51,7 +53,7 @@ export class ReportsService {
         effectiveFrom: '2020-01-01T00:00:00.000Z',
         commissionTaxRate: 8,
         vendorRegistrationFee: 2000000,
-        note: 'Cấu hình tài chính khởi tạo ban đầu (8% thuế sàn, 2tr phí đăng ký vendor)',
+        note: 'Cấu hình tài chính khởi tạo ban đầu',
       },
     ];
   }
@@ -61,7 +63,10 @@ export class ReportsService {
     return history[history.length - 1];
   }
 
-  getFinanceTierForDate(date: Date | string, history: FinanceConfigTier[]): FinanceConfigTier {
+  getFinanceTierForDate(
+    date: Date | string,
+    history: FinanceConfigTier[],
+  ): FinanceConfigTier {
     const targetTime = new Date(date).getTime();
     for (let i = history.length - 1; i >= 0; i--) {
       if (new Date(history[i].effectiveFrom).getTime() <= targetTime) {
@@ -84,7 +89,10 @@ export class ReportsService {
       effectiveFrom: new Date().toISOString(),
       commissionTaxRate: Math.max(
         0,
-        Math.min(100, Number(dto.commissionTaxRate) || current.commissionTaxRate),
+        Math.min(
+          100,
+          Number(dto.commissionTaxRate) || current.commissionTaxRate,
+        ),
       ),
       vendorRegistrationFee: Math.max(
         0,
@@ -92,7 +100,7 @@ export class ReportsService {
       ),
       note:
         dto.note ||
-        `Điều chỉnh cấu hình mới: Thuế sàn ${dto.commissionTaxRate}%, Phí đăng ký vendor ${dto.vendorRegistrationFee}đ`,
+        `Điều chỉnh cấu hình mới: Thuế sàn ${dto.commissionTaxRate}%`,
     };
 
     history.push(newTier);
@@ -112,52 +120,39 @@ export class ReportsService {
     };
   }
 
-  async customerReport(user: UserInfo, query: CustomerReportQueryDto) {
-    const vendorId = user.role === 'vendor' ? user.userID : undefined;
+  async customerReport(_user: UserInfo, query: CustomerReportQueryDto) {
     const dateWhere = {
       ...(query.from ? { gte: new Date(query.from) } : {}),
-      ...(query.to ? { lte: new Date(query.to) } : {})};
+      ...(query.to ? { lte: new Date(query.to) } : {}),
+    };
     const orderScope: Prisma.OrderWhereInput = {
       status: OrderStatus.completed,
       ...(Object.keys(dateWhere).length ? { createdAt: dateWhere } : {}),
-      ...(vendorId
-        ? {
-            details: {
-              some: {
-                productVariant: {
-                  productColor: { product: { vendorId } }}}}}
-        : {})};
-    const buyers = await this.prisma.extended.order.findMany({
-      where: orderScope,
-      select: { clientId: true },
-      distinct: ['clientId']});
-    const customerIds = buyers.map((buyer) => buyer.clientId);
+    };
     const customers = await this.prisma.extended.client.findMany({
-      where: {
-        
-        deletedAt: null,
-        ...(vendorId ? { id: { in: customerIds } } : {})},
-      select: { id: true, dateOfBirth: true, gender: true }});
+      where: { deletedAt: null },
+      select: { id: true, dateOfBirth: true, gender: true },
+    });
     const reportCustomerIds = customers.map((customer) => customer.id);
     const favorites = await this.prisma.extended.productFavorite.findMany({
       where: {
         clientId: { in: reportCustomerIds },
         ...(Object.keys(dateWhere).length ? { createdAt: dateWhere } : {}),
-        ...(vendorId ? { product: { vendorId } } : {})},
+      },
       select: {
         product: {
           select: {
             id: true,
             name: true,
-            category: { select: { id: true, name: true } }}}}});
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
     const details = await this.prisma.extended.orderDetail.findMany({
       where: {
         order: orderScope,
-        ...(vendorId
-          ? {
-              productVariant: {
-                productColor: { product: { vendorId } }}}
-          : {})},
+      },
       select: {
         quantity: true,
         price: true,
@@ -170,7 +165,15 @@ export class ReportsService {
                   select: {
                     id: true,
                     name: true,
-                    category: { select: { id: true, name: true } }}}}}}}}});
+                    category: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
 
     const favoriteProducts = new Map<string, { name: string; count: number }>();
     const favoriteCategories = new Map<
@@ -226,25 +229,33 @@ export class ReportsService {
             result[key] = (result[key] ?? 0) + 1;
             return result;
           }, {}),
-        ).map(([gender, count]) => ({ gender, count }))},
+        ).map(([gender, count]) => ({ gender, count })),
+      },
       interests: {
         favoriteProducts: this.top(favoriteProducts, query.limit),
         favoriteCategories: this.top(favoriteCategories, query.limit),
         purchasedProducts: this.top(purchasedProducts, query.limit),
-        purchasedCategories: this.top(purchasedCategories, query.limit)},
+        purchasedCategories: this.top(purchasedCategories, query.limit),
+      },
       commerce: {
         completedOrderCount: orderCount,
         revenue: revenue.toString(),
         averageOrderValue: orderCount
           ? revenue.div(orderCount).toDecimalPlaces(2).toString()
-          : '0'}};
+          : '0',
+      },
+    };
   }
 
   async analyticsOverview(query: AnalyticsReportQueryDto) {
     const financeHistory = this.getFinanceConfigHistory();
     const currentTier = financeHistory[financeHistory.length - 1];
-    const feePerVendor = query.vendorRegistrationFee ? Number(query.vendorRegistrationFee) : currentTier.vendorRegistrationFee;
-    const taxRatePercent = query.commissionTaxRate ? Number(query.commissionTaxRate) : currentTier.commissionTaxRate;
+    const feePerVendor = query.vendorRegistrationFee
+      ? Number(query.vendorRegistrationFee)
+      : currentTier.vendorRegistrationFee;
+    const taxRatePercent = query.commissionTaxRate
+      ? Number(query.commissionTaxRate)
+      : currentTier.commissionTaxRate;
 
     const orderDateRange = await this.prisma.extended.order.aggregate({
       _min: { createdAt: true },
@@ -261,7 +272,8 @@ export class ReportsService {
     for (let y = maxYear; y >= minYear; y--) {
       availableYears.push(y);
     }
-    if (availableYears.length === 0) availableYears.push(new Date().getFullYear());
+    if (availableYears.length === 0)
+      availableYears.push(new Date().getFullYear());
 
     const targetYear = query.year ? Number(query.year) : availableYears[0];
     const period = query.period || 'month';
@@ -298,49 +310,31 @@ export class ReportsService {
       const startMonth = (quarter - 1) * 3;
       const endMonth = startMonth + 2;
       startDate = new Date(Date.UTC(targetYear, startMonth, 1, 0, 0, 0, 0));
-      endDate = new Date(Date.UTC(targetYear, endMonth + 1, 0, 23, 59, 59, 999));
-      chartBuckets = [
-        {
-          key: `${targetYear}-${String(startMonth + 1).padStart(2, '0')}`,
-          label: `Tháng ${startMonth + 1}`,
-          gmv: 0,
-          cashIn: 0,
-          adminTax: 0,
-          orders: 0,
-          completedOrders: 0,
-          cancelledOrders: 0,
-        },
-        {
-          key: `${targetYear}-${String(startMonth + 2).padStart(2, '0')}`,
-          label: `Tháng ${startMonth + 2}`,
-          gmv: 0,
-          cashIn: 0,
-          adminTax: 0,
-          orders: 0,
-          completedOrders: 0,
-          cancelledOrders: 0,
-        },
-        {
-          key: `${targetYear}-${String(startMonth + 3).padStart(2, '0')}`,
-          label: `Tháng ${startMonth + 3}`,
-          gmv: 0,
-          cashIn: 0,
-          adminTax: 0,
-          orders: 0,
-          completedOrders: 0,
-          cancelledOrders: 0,
-        },
-      ];
+      endDate = new Date(
+        Date.UTC(targetYear, endMonth + 1, 0, 23, 59, 59, 999),
+      );
+      chartBuckets = [0, 1, 2].map((offset) => ({
+        key: `${targetYear}-${String(startMonth + 1 + offset).padStart(2, '0')}`,
+        label: `Tháng ${startMonth + 1 + offset}`,
+        gmv: 0,
+        cashIn: 0,
+        adminTax: 0,
+        orders: 0,
+        completedOrders: 0,
+        cancelledOrders: 0,
+      }));
     } else if (period === 'month') {
       const month = query.month
         ? Number(query.month)
         : orderDateRange._max.createdAt &&
-          new Date(orderDateRange._max.createdAt).getFullYear() === targetYear
-        ? new Date(orderDateRange._max.createdAt).getMonth() + 1
-        : 9;
+            new Date(orderDateRange._max.createdAt).getFullYear() === targetYear
+          ? new Date(orderDateRange._max.createdAt).getMonth() + 1
+          : 9;
       startDate = new Date(Date.UTC(targetYear, month - 1, 1, 0, 0, 0, 0));
       const lastDay = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
-      endDate = new Date(Date.UTC(targetYear, month - 1, lastDay, 23, 59, 59, 999));
+      endDate = new Date(
+        Date.UTC(targetYear, month - 1, lastDay, 23, 59, 59, 999),
+      );
 
       chartBuckets = Array.from({ length: lastDay }, (_, i) => {
         const dayStr = String(i + 1).padStart(2, '0');
@@ -437,16 +431,11 @@ export class ReportsService {
     }
 
     const [
-      activeVendorsCount,
       activeClientsCount,
       totalClientsCount,
       totalProductsCount,
       totalSystemOrdersCount,
-      newVendorsInPeriod,
     ] = await Promise.all([
-      this.prisma.extended.vendor.count({
-        where: { deletedAt: null, status: 'active' },
-      }),
       this.prisma.extended.client.count({
         where: { deletedAt: null, status: 'active' },
       }),
@@ -455,14 +444,6 @@ export class ReportsService {
       }),
       this.prisma.extended.product.count({ where: { deletedAt: null } }),
       this.prisma.extended.order.count(),
-      this.prisma.extended.vendor.count({
-        where: {
-          deletedAt: null,
-          status: 'active',
-          approvalStatus: 'approved',
-          createdAt: { gte: startDate, lte: endDate },
-        },
-      }),
     ]);
 
     const orders = await this.prisma.extended.order.findMany({
@@ -482,13 +463,6 @@ export class ReportsService {
                   include: {
                     product: {
                       include: {
-                        vendor: {
-                          select: {
-                            id: true,
-                            storeName: true,
-                            fullName: true,
-                          },
-                        },
                         category: {
                           select: {
                             id: true,
@@ -513,7 +487,7 @@ export class ReportsService {
     let cancelledOrdersCount = 0;
     const bucketMap = new Map(chartBuckets.map((b) => [b.key, b]));
 
-    const vendorMap = new Map<
+    const categorySalesMap = new Map<
       string,
       {
         id: string;
@@ -542,7 +516,11 @@ export class ReportsService {
         bucketKey = `${orderDate.getUTCFullYear()}-${String(
           orderDate.getUTCMonth() + 1,
         ).padStart(2, '0')}`;
-      } else if (period === 'month' || period === 'week' || period === 'custom') {
+      } else if (
+        period === 'month' ||
+        period === 'week' ||
+        period === 'custom'
+      ) {
         bucketKey = orderDate.toISOString().split('T')[0];
       } else {
         bucketKey = `${orderDate.getUTCFullYear()}`;
@@ -573,8 +551,10 @@ export class ReportsService {
         completedOrdersCount++;
         totalGmv += orderAmount;
 
-        // Apply tax rate effective at order creation time
-        const effectiveTier = this.getFinanceTierForDate(order.createdAt, financeHistory);
+        const effectiveTier = this.getFinanceTierForDate(
+          order.createdAt,
+          financeHistory,
+        );
         const effectiveTaxRate = effectiveTier.commissionTaxRate;
         const tax = Math.round((orderAmount * effectiveTaxRate) / 100);
         orderTaxRevenueTotal += tax;
@@ -610,25 +590,21 @@ export class ReportsService {
             pItem.revenue += itemRevenue;
             productMap.set(pId, pItem);
 
-            const vendor = product.vendor;
-            if (vendor) {
-              const vId = vendor.id;
-              const vName =
-                vendor.storeName || vendor.fullName || 'Gian hàng đối tác';
-              const vItem = vendorMap.get(vId) || {
-                id: vId,
-                name: vName,
-                sales: 0,
-                orderCount: new Set(),
-                itemsSold: 0,
-                tax: 0,
-              };
-              vItem.sales += itemRevenue;
-              vItem.orderCount.add(order.id);
-              vItem.itemsSold += detail.quantity || 1;
-              vItem.tax += Math.round((itemRevenue * effectiveTaxRate) / 100);
-              vendorMap.set(vId, vItem);
-            }
+            const catId = product.category?.id || 'general';
+            const catName = product.category?.name || 'Danh mục chung';
+            const cItem = categorySalesMap.get(catId) || {
+              id: catId,
+              name: catName,
+              sales: 0,
+              orderCount: new Set(),
+              itemsSold: 0,
+              tax: 0,
+            };
+            cItem.sales += itemRevenue;
+            cItem.orderCount.add(order.id);
+            cItem.itemsSold += detail.quantity || 1;
+            cItem.tax += Math.round((itemRevenue * effectiveTaxRate) / 100);
+            categorySalesMap.set(catId, cItem);
           }
         }
       } else if (order.status === OrderStatus.cancelled) {
@@ -639,44 +615,11 @@ export class ReportsService {
       }
     }
 
-    const isAllTime = period === 'all';
-    const periodVendors = await this.prisma.extended.vendor.findMany({
-      where: {
-        deletedAt: null,
-        status: 'active',
-        approvalStatus: 'approved',
-        ...(isAllTime ? {} : { createdAt: { gte: startDate, lte: endDate } }),
-      },
-      select: { id: true, createdAt: true, subscriptionFee: true },
-    });
-
-    let vendorFeeRevenue = 0;
-    for (const v of periodVendors) {
-      const vTier = this.getFinanceTierForDate(v.createdAt, financeHistory);
-      const fee = Number(v.subscriptionFee) || vTier.vendorRegistrationFee;
-      vendorFeeRevenue += fee;
-    }
-
-    const allVendors = await this.prisma.extended.vendor.findMany({
-      where: {
-        deletedAt: null,
-        status: 'active',
-        approvalStatus: 'approved',
-      },
-      select: { id: true, createdAt: true, subscriptionFee: true },
-    });
-    let allTimeVendorFeeRevenue = 0;
-    for (const v of allVendors) {
-      const vTier = this.getFinanceTierForDate(v.createdAt, financeHistory);
-      const fee = Number(v.subscriptionFee) || vTier.vendorRegistrationFee;
-      allTimeVendorFeeRevenue += fee;
-    }
-
     const orderTaxRevenue = orderTaxRevenueTotal;
-    const totalAdminRevenue = vendorFeeRevenue + orderTaxRevenue;
+    const totalAdminRevenue = orderTaxRevenue;
     const vendorNetRevenue = totalGmv - orderTaxRevenue;
 
-    const topVendors = Array.from(vendorMap.values())
+    const topVendors = Array.from(categorySalesMap.values())
       .map((v) => ({
         id: v.id,
         name: v.name,
@@ -710,9 +653,9 @@ export class ReportsService {
         totalGmv,
         totalCashIn,
         totalAdminRevenue,
-        vendorFeeRevenue,
-        allTimeVendorFeeRevenue,
-        newVendorsInPeriod,
+        vendorFeeRevenue: 0,
+        allTimeVendorFeeRevenue: 0,
+        newVendorsInPeriod: 0,
         orderTaxRevenue,
         vendorNetRevenue,
         totalOrdersCount: orders.length,
@@ -723,7 +666,7 @@ export class ReportsService {
           orders.length > 0
             ? Number(((completedOrdersCount / orders.length) * 100).toFixed(1))
             : 0,
-        activeVendorsCount,
+        activeVendorsCount: 0,
         activeClientsCount,
         totalClientsCount,
         totalProductsCount,
@@ -834,7 +777,10 @@ export class ReportsService {
 
     let totalAgeSum = 0;
     let ageCount = 0;
-    const clientAgeMap = new Map<string, { age: number; groupKey: string; groupLabel: string }>();
+    const clientAgeMap = new Map<
+      string,
+      { age: number; groupKey: string; groupLabel: string }
+    >();
 
     for (const c of clients) {
       if (!c.dateOfBirth) continue;
@@ -853,18 +799,22 @@ export class ReportsService {
       if (grp) {
         grp.count++;
         grp.clientIds.add(c.id);
-        clientAgeMap.set(c.id, { age, groupKey: grp.key, groupLabel: grp.label });
+        clientAgeMap.set(c.id, {
+          age,
+          groupKey: grp.key,
+          groupLabel: grp.label,
+        });
       }
     }
 
     const averageAge = ageCount > 0 ? (totalAgeSum / ageCount).toFixed(1) : '0';
     ageGroups.forEach((g) => {
-      g.percentage = ageCount > 0 ? Number(((g.count / ageCount) * 100).toFixed(1)) : 0;
+      g.percentage =
+        ageCount > 0 ? Number(((g.count / ageCount) * 100).toFixed(1)) : 0;
     });
 
     const dominantGroup = [...ageGroups].sort((a, b) => b.count - a.count)[0];
 
-    // Gender distribution
     const genderLabels: Record<string, string> = {
       male: 'Nam',
       female: 'Nữ',
@@ -884,7 +834,7 @@ export class ReportsService {
       percentage: Number(((count / (clients.length || 1)) * 100).toFixed(1)),
     }));
 
-    // 2. Favorites: ProductFavorite -> Product -> Vendor
+    // 2. Favorites: ProductFavorite -> Product -> Category
     const favorites = await this.prisma.extended.productFavorite.findMany({
       select: {
         clientId: true,
@@ -895,8 +845,6 @@ export class ReportsService {
             name: true,
             categoryId: true,
             category: { select: { name: true } },
-            vendorId: true,
-            vendor: { select: { id: true, storeName: true, fullName: true, avatarUrl: true } },
           },
         },
       },
@@ -906,7 +854,10 @@ export class ReportsService {
     const clientFavCountMap = new Map<string, number>();
 
     for (const f of favorites) {
-      clientFavCountMap.set(f.clientId, (clientFavCountMap.get(f.clientId) || 0) + 1);
+      clientFavCountMap.set(
+        f.clientId,
+        (clientFavCountMap.get(f.clientId) || 0) + 1,
+      );
 
       if (f.product?.category?.name) {
         const catName = f.product.category.name;
@@ -936,12 +887,15 @@ export class ReportsService {
         avatarUrl: v.avatarUrl,
         favoriteCount: v.favoriteCount,
         uniqueClientsCount: v.clients.size,
-        topProduct: Array.from(v.topProducts.entries()).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || '',
+        topProduct:
+          Array.from(v.topProducts.entries()).sort(
+            (a: any, b: any) => b[1] - a[1],
+          )[0]?.[0] || '',
       }))
       .sort((a, b) => b.favoriteCount - a.favoriteCount)
       .slice(0, 10);
 
-    // 3. Purchases: OrderDetail -> ProductVariant -> ProductColor -> Product -> Vendor
+    // 3. Purchases: OrderDetail -> ProductVariant -> ProductColor -> Product -> Category
     const orderDetails = await this.prisma.extended.orderDetail.findMany({
       where: {
         order: {
@@ -970,8 +924,6 @@ export class ReportsService {
                     name: true,
                     categoryId: true,
                     category: { select: { name: true } },
-                    vendorId: true,
-                    vendor: { select: { id: true, storeName: true, fullName: true, avatarUrl: true } },
                   },
                 },
               },
@@ -999,7 +951,6 @@ export class ReportsService {
           : 1;
       const lineTotal = Math.round(Number(d.price) * d.quantity * netRatio);
 
-      // Category stats
       if (!vendorPurchaseMap.has(catId)) {
         vendorPurchaseMap.set(catId, {
           vendorId: catId,
@@ -1017,7 +968,6 @@ export class ReportsService {
       vItem.totalRevenue += lineTotal;
       vItem.buyers.add(clientId);
 
-      // Client stats
       if (!clientPurchaseMap.has(clientId)) {
         clientPurchaseMap.set(clientId, {
           ordersSet: new Set<string>(),
@@ -1114,7 +1064,10 @@ export class ReportsService {
       }
 
       for (const d of orderDetails) {
-        if (clientIds.has(d.order.clientId) && d.productVariant?.productColor?.product?.category?.name) {
+        if (
+          clientIds.has(d.order.clientId) &&
+          d.productVariant?.productColor?.product?.category?.name
+        ) {
           const name = d.productVariant.productColor.product.category.name;
           const orderSubtotal = Number(d.order.subtotalAmount || 0);
           const orderDiscount = Number(d.order.discountAmount || 0);
@@ -1122,13 +1075,22 @@ export class ReportsService {
             orderSubtotal > 0 && orderDiscount > 0
               ? Math.max(0, orderSubtotal - orderDiscount) / orderSubtotal
               : 1;
-          vendorBuyInGroup.set(name, (vendorBuyInGroup.get(name) || 0) + d.quantity);
-          totalSpentInGroup += Math.round(Number(d.price) * d.quantity * netRatio);
+          vendorBuyInGroup.set(
+            name,
+            (vendorBuyInGroup.get(name) || 0) + d.quantity,
+          );
+          totalSpentInGroup += Math.round(
+            Number(d.price) * d.quantity * netRatio,
+          );
         }
       }
 
-      const topFav = Array.from(vendorFavInGroup.entries()).sort((a, b) => b[1] - a[1])[0];
-      const topBuy = Array.from(vendorBuyInGroup.entries()).sort((a, b) => b[1] - a[1])[0];
+      const topFav = Array.from(vendorFavInGroup.entries()).sort(
+        (a, b) => b[1] - a[1],
+      )[0];
+      const topBuy = Array.from(vendorBuyInGroup.entries()).sort(
+        (a, b) => b[1] - a[1],
+      )[0];
 
       return {
         key: grp.key,
@@ -1146,7 +1108,9 @@ export class ReportsService {
       const ageInfo = clientAgeMap.get(c.id);
       const purchaseInfo = clientPurchaseMap.get(c.id);
       const topStorePurchased = purchaseInfo?.vendorCounts
-        ? Array.from(purchaseInfo.vendorCounts.entries()).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || 'Chưa mua'
+        ? Array.from(purchaseInfo.vendorCounts.entries()).sort(
+            (a: any, b: any) => b[1] - a[1],
+          )[0]?.[0] || 'Chưa mua'
         : 'Chưa mua';
 
       return {
@@ -1168,7 +1132,9 @@ export class ReportsService {
     });
 
     if (filterAgeGroup && filterAgeGroup !== 'all') {
-      enrichedClients = enrichedClients.filter((c) => c.ageGroupKey === filterAgeGroup);
+      enrichedClients = enrichedClients.filter(
+        (c) => c.ageGroupKey === filterAgeGroup,
+      );
     }
 
     if (search) {
@@ -1191,14 +1157,23 @@ export class ReportsService {
         unknownAgeCount: clients.length - ageCount,
         averageAge,
         dominantGroup: {
-          key: dominantGroup && dominantGroup.count > 0 ? dominantGroup.key : '',
-          label: dominantGroup && dominantGroup.count > 0 ? dominantGroup.label : 'Chưa xác định',
+          key:
+            dominantGroup && dominantGroup.count > 0 ? dominantGroup.key : '',
+          label:
+            dominantGroup && dominantGroup.count > 0
+              ? dominantGroup.label
+              : 'Chưa xác định',
           count: dominantGroup?.count || 0,
           percentage: dominantGroup?.percentage || 0,
         },
         genderStats,
       },
-      ageGroups: ageGroups.map(({ key, label, count, percentage }) => ({ key, label, count, percentage })),
+      ageGroups: ageGroups.map(({ key, label, count, percentage }) => ({
+        key,
+        label,
+        count,
+        percentage,
+      })),
       ageGroupAnalysis,
       topFavoriteVendors,
       topPurchasedVendors,
@@ -1213,4 +1188,3 @@ export class ReportsService {
     };
   }
 }
-

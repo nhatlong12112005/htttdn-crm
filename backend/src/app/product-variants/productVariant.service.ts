@@ -11,16 +11,20 @@ import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class ProductVariantService extends PrismaBaseService<'productVariant'> {
-  constructor(private readonly prismaDb: PrismaService, private readonly realtime: RealtimeService) {
+  constructor(
+    private readonly prismaDb: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {
     super(prismaDb, 'productVariant');
   }
+
   async createProductVariant(
     createProductVariantDto: CreateProductVariantDto,
-    vendorId: string,
+    _vendorId?: string,
   ) {
     const { productColorId, size, price, stock = 0 } = createProductVariantDto;
 
-    await this.getActiveProductColor(productColorId, vendorId);
+    await this.getActiveProductColor(productColorId);
 
     const existing = await this.prismaDb.extended.productVariant.findUnique({
       where: { productColorId_size: { productColorId, size } },
@@ -30,13 +34,12 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
       throw new ConflictException(`Size "${size}" đã tồn tại trong màu này`);
     }
 
-    // Size đã xóa mềm vẫn chịu ràng buộc unique nên được khôi phục thay vì tạo mới.
     if (existing) {
       const restored = await this.extended.update({
         where: { id: existing.id },
         data: { deletedAt: null, price, stock },
       });
-      await this.emitForColor(productColorId, vendorId);
+      await this.emitForColor(productColorId);
       return restored;
     }
 
@@ -45,7 +48,6 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
         size,
         price,
         stock,
-
         productColor: {
           connect: {
             id: productColorId,
@@ -53,7 +55,7 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
         },
       },
     });
-    await this.emitForColor(productColorId, vendorId);
+    await this.emitForColor(productColorId);
     return created;
   }
 
@@ -69,9 +71,9 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
   async updateProductVariant(
     id: string,
     data: UpdateProductVariantDto,
-    vendorId: string,
+    _vendorId?: string,
   ) {
-    const variant = await this.getActiveVariant(id, vendorId);
+    const variant = await this.getActiveVariant(id);
 
     if (data.size !== undefined && data.size !== variant.size) {
       await this.checkDuplicateSize(variant.productColorId, data.size, id, true);
@@ -81,36 +83,34 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
       where: { id, productColorId: variant.productColorId, deletedAt: null },
       data,
     });
-    await this.emitForColor(variant.productColorId, vendorId);
+    await this.emitForColor(variant.productColorId);
     return updated;
   }
 
-  async deleteProductVariant(id: string, vendorId: string) {
-    const variant = await this.getActiveVariant(id, vendorId);
+  async deleteProductVariant(id: string, _vendorId?: string) {
+    const variant = await this.getActiveVariant(id);
 
     const deleted = await this.extended.update({
       where: { id, productColorId: variant.productColorId, deletedAt: null },
       data: { deletedAt: new Date() },
     });
-    await this.emitForColor(variant.productColorId, vendorId);
+    await this.emitForColor(variant.productColorId);
     return deleted;
   }
 
-  private async emitForColor(productColorId: string, vendorId: string) {
+  private async emitForColor(productColorId: string) {
     const color = await this.prismaDb.extended.productColor.findUnique({
-      where: { id: productColorId }, select: { productId: true },
+      where: { id: productColorId },
+      select: { productId: true },
     });
-    if (color) this.realtime.emitProductUpdated(color.productId, vendorId);
+    if (color) this.realtime.emitProductUpdated(color.productId, null);
   }
 
-  private async getActiveProductColor(
-    productColorId: string,
-    vendorId?: string,
-  ) {
+  private async getActiveProductColor(productColorId: string) {
     const productColor = await this.prismaDb.extended.productColor.findFirst({
       where: {
         id: productColorId,
-        product: { deletedAt: null, ...(vendorId ? { vendorId } : {}) },
+        product: { deletedAt: null },
       },
       select: { id: true },
     });
@@ -122,14 +122,14 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
     return productColor;
   }
 
-  private async getActiveVariant(id: string, vendorId: string) {
+  private async getActiveVariant(id: string) {
     const variant = await this.extended.findFirst({
       where: {
         id,
         deletedAt: null,
         productColor: {
           deletedAt: null,
-          product: { deletedAt: null, vendorId },
+          product: { deletedAt: null },
         },
       },
     });
@@ -147,7 +147,6 @@ export class ProductVariantService extends PrismaBaseService<'productVariant'> {
     excludingId?: string,
     includeDeleted = false,
   ) {
-    // Bản ghi đã xóa mềm vẫn nằm trong ràng buộc unique, nên khi đổi size phải tính cả chúng.
     const duplicate = await this.prismaDb.extended.productVariant.findFirst({
       where: {
         productColorId,

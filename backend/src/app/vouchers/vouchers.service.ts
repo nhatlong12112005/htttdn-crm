@@ -70,7 +70,6 @@ export class VouchersService {
         code: true,
         name: true,
         scope: true,
-        vendorId: true,
         discountType: true,
         discountValue: true,
         minOrderAmount: true,
@@ -94,36 +93,23 @@ export class VouchersService {
       }));
   }
 
-  private emitUpdated(voucher: { id: string; vendorId: string | null }) {
+  private emitUpdated(voucher: { id: string }) {
     const payload = { voucherId: voucher.id };
     this.realtime?.emitToCatalog('voucher:updated', payload);
     this.realtime?.emitToAdmins('voucher:updated', payload);
-    if (voucher.vendorId)
-      this.realtime?.emitToVendor(voucher.vendorId, 'voucher:updated', payload);
   }
 
   async create(dto: CreateVoucherDto, user: UserInfo) {
-    if (user.role !== 'admin' && user.role !== 'vendor') {
-      throw new ForbiddenException('Chỉ admin hoặc vendor được tạo voucher');
+    if (user.role !== 'admin') {
+      throw new ForbiddenException('Chỉ admin mới được tạo voucher');
     }
 
-    const scope =
-      user.role === 'admin' ? VoucherScope.platform : VoucherScope.vendor;
+    const scope = VoucherScope.platform;
     let productIds = [...new Set(dto.productIds ?? [])];
     const categoryIds = [...new Set(dto.categoryIds ?? [])];
 
-    if (scope === VoucherScope.vendor) {
-      if (!productIds.length) {
-        throw new BadRequestException('Vendor phải chọn ít nhất một sản phẩm');
-      }
-      await this.assertOwnedProducts(productIds, user.userID);
-    } else {
-      if (productIds.length) {
-        throw new BadRequestException('Voucher toàn sàn không nhận productIds');
-      }
-      if (categoryIds.length) {
-        productIds = await this.resolveCategoryProductIds(categoryIds);
-      }
+    if (categoryIds.length) {
+      productIds = await this.resolveCategoryProductIds(categoryIds);
     }
 
     const duplicate = await this.prisma.extended.voucher.findUnique({
@@ -136,8 +122,7 @@ export class VouchersService {
       data: {
         ...data,
         scope,
-        adminId: user.role === 'admin' ? user.userID : undefined,
-        vendorId: user.role === 'vendor' ? user.userID : undefined,
+        adminId: user.userID,
         details: productIds.length
           ? {
               create: productIds.map((productId) => ({ productId })),
@@ -153,7 +138,7 @@ export class VouchersService {
   async getMine(userId: string) {
     const list = await this.prisma.extended.voucher.findMany({
       where: {
-        OR: [{ adminId: userId }, { vendorId: userId }],
+        adminId: userId,
         deletedAt: null,
       },
       include: this.detailsInclude(),
@@ -168,7 +153,6 @@ export class VouchersService {
       include: {
         ...this.detailsInclude(),
         admin: { select: { id: true, fullName: true } },
-        vendor: { select: { id: true, fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -187,7 +171,6 @@ export class VouchersService {
       include: {
         ...this.detailsInclude(),
         admin: { select: { id: true, fullName: true } },
-        vendor: { select: { id: true, fullName: true } },
       },
       orderBy: { endDate: 'asc' },
     });
@@ -202,11 +185,7 @@ export class VouchersService {
       include: this.detailsInclude(),
     });
     if (!voucher) throw new NotFoundException('Voucher không tồn tại');
-    if (
-      user.role !== 'admin' &&
-      voucher.vendorId !== user.userID &&
-      voucher.adminId !== user.userID
-    ) {
+    if (user.role !== 'admin' && voucher.adminId !== user.userID) {
       throw new ForbiddenException('Bạn không có quyền xem voucher này');
     }
     return this.enrichVoucher(voucher);
@@ -214,28 +193,18 @@ export class VouchersService {
 
   async update(id: string, dto: UpdateVoucherDto, user: UserInfo) {
     const current = await this.getById(id, user);
-    if (current.vendorId !== user.userID && current.adminId !== user.userID) {
-      throw new ForbiddenException(
-        'Admin chỉ được vô hiệu hóa voucher của vendor',
-      );
+    if (user.role !== 'admin' && current.adminId !== user.userID) {
+      throw new ForbiddenException('Bạn không có quyền cập nhật voucher này');
     }
 
     let productIds = dto.productIds
       ? [...new Set(dto.productIds)]
       : undefined;
-    if (current.scope === VoucherScope.vendor && productIds) {
-      await this.assertOwnedProducts(productIds, current.vendorId!);
-    }
-    if (current.scope === VoucherScope.platform) {
-      if (productIds) {
-        throw new BadRequestException('Voucher toàn sàn không nhận productIds');
-      }
-      if (dto.categoryIds !== undefined) {
-        const categoryIds = [...new Set(dto.categoryIds)];
-        productIds = categoryIds.length
-          ? await this.resolveCategoryProductIds(categoryIds)
-          : [];
-      }
+    if (dto.categoryIds !== undefined) {
+      const categoryIds = [...new Set(dto.categoryIds)];
+      productIds = categoryIds.length
+        ? await this.resolveCategoryProductIds(categoryIds)
+        : [];
     }
     const quantity = dto.quantity ?? current.quantity;
     const perUserLimit = dto.perUserLimit ?? current.perUserLimit;
@@ -303,11 +272,7 @@ export class VouchersService {
     moderation = false,
   ) {
     const voucher = await this.getById(id, user);
-    if (
-      !moderation &&
-      voucher.vendorId !== user.userID &&
-      voucher.adminId !== user.userID
-    ) {
+    if (!moderation && voucher.adminId !== user.userID) {
       throw new ForbiddenException('Bạn không có quyền cập nhật voucher này');
     }
     const updated = await this.prisma.extended.voucher.update({
@@ -320,7 +285,7 @@ export class VouchersService {
 
   async remove(id: string, user: UserInfo) {
     const voucher = await this.getById(id, user);
-    if (voucher.vendorId !== user.userID && voucher.adminId !== user.userID) {
+    if (user.role !== 'admin' && voucher.adminId !== user.userID) {
       throw new ForbiddenException('Bạn không có quyền xóa voucher này');
     }
     const updated = await this.prisma.extended.voucher.update({
@@ -531,16 +496,9 @@ export class VouchersService {
     };
   }
 
-  private async assertOwnedProducts(productIds: string[], vendorId: string) {
-    const count = await this.prisma.extended.product.count({
-      where: { id: { in: productIds }, vendorId, deletedAt: null },
-    });
-    if (count !== productIds.length) {
-      throw new ForbiddenException('Có sản phẩm không thuộc cửa hàng của bạn');
-    }
-  }
-
-  private async resolveCategoryProductIds(categoryIds: string[]): Promise<string[]> {
+  private async resolveCategoryProductIds(
+    categoryIds: string[],
+  ): Promise<string[]> {
     const validCategories = await this.prisma.extended.category.count({
       where: { id: { in: categoryIds }, deletedAt: null },
     });
@@ -552,7 +510,9 @@ export class VouchersService {
       select: { id: true },
     });
     if (products.length === 0) {
-      throw new BadRequestException('Các danh mục đã chọn hiện chưa có sản phẩm nào');
+      throw new BadRequestException(
+        'Các danh mục đã chọn hiện chưa có sản phẩm nào',
+      );
     }
     return products.map((p) => p.id);
   }
@@ -567,7 +527,10 @@ export class VouchersService {
       }>;
     },
   >(voucher: T) {
-    const categoryMap = new Map<string, { id: string; name: string; slug: string }>();
+    const categoryMap = new Map<
+      string,
+      { id: string; name: string; slug: string }
+    >();
     for (const detail of voucher.details ?? []) {
       const cat = detail.product?.category;
       if (cat?.id && !categoryMap.has(cat.id)) {

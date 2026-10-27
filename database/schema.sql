@@ -49,21 +49,6 @@ CREATE TYPE "PaymentMethod" AS ENUM ('cod', 'vnpay', 'momo', 'zalopay', 'bank_tr
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('pending', 'paid', 'failed', 'cancelled', 'refunded');
 
--- CreateEnum
-CREATE TYPE "EmploymentType" AS ENUM ('full_time', 'part_time');
-
--- CreateEnum
-CREATE TYPE "AttendanceStatus" AS ENUM ('present', 'absent', 'late', 'leave');
-
--- CreateEnum
-CREATE TYPE "PayrollStatus" AS ENUM ('draft', 'approved', 'paid');
-
--- CreateEnum
-CREATE TYPE "VendorOrderStatus" AS ENUM ('pending', 'confirmed', 'processing', 'ready_for_pickup', 'shipping', 'delivered', 'cancelled');
-
--- CreateEnum
-CREATE TYPE "ShipmentStatus" AS ENUM ('pending', 'assigned', 'picking_up', 'in_transit', 'out_for_delivery', 'delivered', 'failed', 'returned');
-
 -- CreateTable
 CREATE TABLE "Admin" (
     "id" UUID NOT NULL,
@@ -73,42 +58,14 @@ CREATE TABLE "Admin" (
     "phone" VARCHAR(255),
     "avatarUrl" VARCHAR(1000),
     "department" VARCHAR(255),
+    "roleCode" VARCHAR(50) NOT NULL DEFAULT 'SUPER_ADMIN',
+    "permissions" JSONB,
     "status" "UserStatus" NOT NULL DEFAULT 'active',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "Admin_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Employee" (
-    "id" UUID NOT NULL,
-    "employeeCode" VARCHAR(50) NOT NULL,
-    "fullName" VARCHAR(255) NOT NULL,
-    "email" VARCHAR(255) NOT NULL,
-    "password" VARCHAR(255) NOT NULL,
-    "phone" VARCHAR(50),
-    "avatarUrl" VARCHAR(1000),
-    "dateOfBirth" DATE,
-    "gender" "Gender",
-    "citizenId" VARCHAR(50),
-    "address" VARCHAR(500),
-    "department" VARCHAR(100) NOT NULL,
-    "position" VARCHAR(100) NOT NULL,
-    "employmentType" "EmploymentType" NOT NULL DEFAULT 'full_time',
-    "salary" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "hourlyRate" DECIMAL(12,2),
-    "hireDate" DATE NOT NULL,
-    "status" "UserStatus" NOT NULL DEFAULT 'active',
-    "assignedOrderScope" VARCHAR(100) NOT NULL DEFAULT 'assigned_orders',
-    "permissions" JSONB,
-    "adminId" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
-
-    CONSTRAINT "Employee_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -131,40 +88,28 @@ CREATE TABLE "Client" (
 );
 
 -- CreateTable
-CREATE TABLE "Vendor" (
+CREATE TABLE "ClientAddress" (
     "id" UUID NOT NULL,
-    "fullName" VARCHAR(255) NOT NULL,
-    "email" VARCHAR(255) NOT NULL,
-    "password" VARCHAR(255) NOT NULL,
-    "phone" VARCHAR(255),
-    "avatarUrl" VARCHAR(1000),
-    "storeName" VARCHAR(255),
-    "taxId" VARCHAR(100),
-    "address" VARCHAR(500),
-    "status" "UserStatus" NOT NULL DEFAULT 'active',
+    "clientId" UUID NOT NULL,
+    "receiverName" VARCHAR(255) NOT NULL,
+    "phone" VARCHAR(50) NOT NULL,
+    "addressLine" VARCHAR(500) NOT NULL,
+    "ward" VARCHAR(255),
+    "district" VARCHAR(255),
+    "province" VARCHAR(255),
+    "label" VARCHAR(100),
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
-    "subscriptionPlan" VARCHAR(50) DEFAULT '1_year',
-    "subscriptionFee" DECIMAL(12,2) DEFAULT 1200000,
-    "subscriptionExpiresAt" TIMESTAMP(6),
-    "commissionRate" DECIMAL(5,2) NOT NULL DEFAULT 8.0,
-    "approvalStatus" VARCHAR(50) NOT NULL DEFAULT 'approved',
-    "approvedAt" TIMESTAMP(3),
-    "approvedBy" VARCHAR(255),
-    "rejectedReason" VARCHAR(500),
-    "renewalRequested" BOOLEAN NOT NULL DEFAULT false,
-    "renewalPlan" VARCHAR(50),
-    "renewalRequestedAt" TIMESTAMP(3),
 
-    CONSTRAINT "Vendor_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ClientAddress_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Survey" (
     "id" UUID NOT NULL,
     "adminId" UUID,
-    "vendorId" UUID,
     "title" VARCHAR(255) NOT NULL,
     "description" TEXT,
     "imageUrl" VARCHAR(1000),
@@ -226,11 +171,23 @@ CREATE TABLE "SurveyResponse" (
 );
 
 -- CreateTable
+CREATE TABLE "SurveyAnswer" (
+    "id" UUID NOT NULL,
+    "responseId" UUID NOT NULL,
+    "questionId" UUID NOT NULL,
+    "optionId" UUID,
+    "textAnswer" TEXT,
+    "ratingValue" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SurveyAnswer_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Notification" (
     "id" UUID NOT NULL,
     "adminId" UUID,
     "clientId" UUID,
-    "vendorId" UUID,
     "surveyId" UUID,
     "surveyResponseId" UUID,
     "type" "NotificationType" NOT NULL,
@@ -246,23 +203,9 @@ CREATE TABLE "Notification" (
 );
 
 -- CreateTable
-CREATE TABLE "SurveyAnswer" (
-    "id" UUID NOT NULL,
-    "responseId" UUID NOT NULL,
-    "questionId" UUID NOT NULL,
-    "optionId" UUID,
-    "textAnswer" TEXT,
-    "ratingValue" INTEGER,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "SurveyAnswer_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "Voucher" (
     "id" UUID NOT NULL,
     "adminId" UUID,
-    "vendorId" UUID,
     "code" VARCHAR(50) NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "scope" "VoucherScope" NOT NULL,
@@ -314,7 +257,6 @@ CREATE TABLE "Category" (
 CREATE TABLE "Product" (
     "id" UUID NOT NULL,
     "categoryId" UUID NOT NULL,
-    "vendorId" UUID,
     "name" VARCHAR(255) NOT NULL,
     "slug" VARCHAR(255) NOT NULL,
     "description" TEXT,
@@ -334,25 +276,6 @@ CREATE TABLE "ProductFavorite" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ProductFavorite_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "ClientAddress" (
-    "id" UUID NOT NULL,
-    "clientId" UUID NOT NULL,
-    "receiverName" VARCHAR(255) NOT NULL,
-    "phone" VARCHAR(50) NOT NULL,
-    "addressLine" VARCHAR(500) NOT NULL,
-    "ward" VARCHAR(255),
-    "district" VARCHAR(255),
-    "province" VARCHAR(255),
-    "label" VARCHAR(100),
-    "isDefault" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
-
-    CONSTRAINT "ClientAddress_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -454,7 +377,6 @@ CREATE TABLE "OrderDetail" (
     "colorName" VARCHAR(100),
     "sizeName" VARCHAR(100),
     "imageUrl" VARCHAR(1000),
-    "vendorOrderId" UUID,
 
     CONSTRAINT "OrderDetail_pkey" PRIMARY KEY ("id")
 );
@@ -483,155 +405,25 @@ CREATE TABLE "OrderStatusHistory" (
     "orderId" UUID NOT NULL,
     "adminId" UUID,
     "clientId" UUID,
-    "vendorId" UUID,
     "fromStatus" "OrderStatus",
     "toStatus" "OrderStatus" NOT NULL,
     "note" VARCHAR(1000),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "employeeId" UUID,
 
     CONSTRAINT "OrderStatusHistory_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "EmployeeSalaryHistory" (
-    "id" UUID NOT NULL,
-    "employeeId" UUID NOT NULL,
-    "oldSalary" DECIMAL(12,2),
-    "newSalary" DECIMAL(12,2) NOT NULL,
-    "oldHourlyRate" DECIMAL(12,2),
-    "newHourlyRate" DECIMAL(12,2),
-    "employmentType" "EmploymentType" NOT NULL DEFAULT 'full_time',
-    "effectiveDate" DATE NOT NULL,
-    "reason" VARCHAR(500),
-    "adminId" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "EmployeeSalaryHistory_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "EmployeeAttendance" (
-    "id" UUID NOT NULL,
-    "employeeId" UUID NOT NULL,
-    "date" DATE NOT NULL,
-    "checkIn" TIMESTAMP(3),
-    "checkOut" TIMESTAMP(3),
-    "hoursWorked" DECIMAL(5,2),
-    "status" "AttendanceStatus" NOT NULL DEFAULT 'present',
-    "note" VARCHAR(500),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "EmployeeAttendance_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "EmployeePayroll" (
-    "id" UUID NOT NULL,
-    "employeeId" UUID NOT NULL,
-    "month" INTEGER NOT NULL,
-    "year" INTEGER NOT NULL,
-    "employmentType" "EmploymentType" NOT NULL DEFAULT 'full_time',
-    "baseSalary" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "hourlyRate" DECIMAL(12,2),
-    "totalHours" DECIMAL(6,2),
-    "allowances" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "deductions" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "bonus" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "netSalary" DECIMAL(12,2) NOT NULL,
-    "status" "PayrollStatus" NOT NULL DEFAULT 'draft',
-    "paidAt" TIMESTAMP(3),
-    "notes" VARCHAR(1000),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "EmployeePayroll_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "VendorOrder" (
-    "id" UUID NOT NULL,
-    "vendorOrderCode" VARCHAR(50) NOT NULL,
-    "orderId" UUID NOT NULL,
-    "vendorId" UUID NOT NULL,
-    "subtotalAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "shippingFee" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "totalAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "status" "VendorOrderStatus" NOT NULL DEFAULT 'pending',
-    "notes" VARCHAR(1000),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "VendorOrder_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Shipment" (
-    "id" UUID NOT NULL,
-    "trackingNumber" VARCHAR(50) NOT NULL,
-    "orderId" UUID NOT NULL,
-    "vendorOrderId" UUID,
-    "carrierId" UUID,
-    "carrierType" VARCHAR(50) NOT NULL DEFAULT 'employee',
-    "status" "ShipmentStatus" NOT NULL DEFAULT 'pending',
-    "pickupAddress" VARCHAR(500),
-    "shippingAddress" VARCHAR(500),
-    "receiverName" VARCHAR(255),
-    "receiverPhone" VARCHAR(50),
-    "estimatedDelivery" TIMESTAMP(3),
-    "deliveredAt" TIMESTAMP(3),
-    "failedReason" VARCHAR(500),
-    "notes" VARCHAR(1000),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Shipment_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "ShipmentEvent" (
-    "id" UUID NOT NULL,
-    "shipmentId" UUID NOT NULL,
-    "status" "ShipmentStatus" NOT NULL,
-    "location" VARCHAR(255),
-    "description" VARCHAR(500),
-    "actorRole" VARCHAR(50),
-    "actorId" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "ShipmentEvent_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Admin_email_key" ON "Admin"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Employee_employeeCode_key" ON "Employee"("employeeCode");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Employee_email_key" ON "Employee"("email");
-
--- CreateIndex
-CREATE INDEX "Employee_adminId_idx" ON "Employee"("adminId");
-
--- CreateIndex
-CREATE INDEX "Employee_status_idx" ON "Employee"("status");
-
--- CreateIndex
-CREATE INDEX "Employee_department_idx" ON "Employee"("department");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Client_email_key" ON "Client"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Vendor_email_key" ON "Vendor"("email");
+CREATE INDEX "ClientAddress_clientId_deletedAt_idx" ON "ClientAddress"("clientId", "deletedAt");
 
 -- CreateIndex
 CREATE INDEX "Survey_adminId_idx" ON "Survey"("adminId");
-
--- CreateIndex
-CREATE INDEX "Survey_vendorId_idx" ON "Survey"("vendorId");
 
 -- CreateIndex
 CREATE INDEX "Survey_status_triggerType_startDate_endDate_idx" ON "Survey"("status", "triggerType", "startDate", "endDate");
@@ -661,21 +453,6 @@ CREATE INDEX "SurveyResponse_clientId_status_createdAt_idx" ON "SurveyResponse"(
 CREATE INDEX "SurveyResponse_orderId_status_idx" ON "SurveyResponse"("orderId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Notification_surveyResponseId_key" ON "Notification"("surveyResponseId");
-
--- CreateIndex
-CREATE INDEX "Notification_adminId_isRead_createdAt_idx" ON "Notification"("adminId", "isRead", "createdAt");
-
--- CreateIndex
-CREATE INDEX "Notification_clientId_isRead_createdAt_idx" ON "Notification"("clientId", "isRead", "createdAt");
-
--- CreateIndex
-CREATE INDEX "Notification_vendorId_isRead_createdAt_idx" ON "Notification"("vendorId", "isRead", "createdAt");
-
--- CreateIndex
-CREATE INDEX "Notification_surveyId_idx" ON "Notification"("surveyId");
-
--- CreateIndex
 CREATE INDEX "SurveyAnswer_responseId_idx" ON "SurveyAnswer"("responseId");
 
 -- CreateIndex
@@ -685,13 +462,22 @@ CREATE INDEX "SurveyAnswer_questionId_idx" ON "SurveyAnswer"("questionId");
 CREATE INDEX "SurveyAnswer_optionId_idx" ON "SurveyAnswer"("optionId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Notification_surveyResponseId_key" ON "Notification"("surveyResponseId");
+
+-- CreateIndex
+CREATE INDEX "Notification_adminId_isRead_createdAt_idx" ON "Notification"("adminId", "isRead", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "Notification_clientId_isRead_createdAt_idx" ON "Notification"("clientId", "isRead", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "Notification_surveyId_idx" ON "Notification"("surveyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Voucher_code_key" ON "Voucher"("code");
 
 -- CreateIndex
 CREATE INDEX "Voucher_adminId_idx" ON "Voucher"("adminId");
-
--- CreateIndex
-CREATE INDEX "Voucher_vendorId_idx" ON "Voucher"("vendorId");
 
 -- CreateIndex
 CREATE INDEX "Voucher_scope_idx" ON "Voucher"("scope");
@@ -727,9 +513,6 @@ CREATE UNIQUE INDEX "Product_slug_key" ON "Product"("slug");
 CREATE INDEX "Product_categoryId_idx" ON "Product"("categoryId");
 
 -- CreateIndex
-CREATE INDEX "Product_vendorId_idx" ON "Product"("vendorId");
-
--- CreateIndex
 CREATE INDEX "Product_status_idx" ON "Product"("status");
 
 -- CreateIndex
@@ -740,9 +523,6 @@ CREATE INDEX "ProductFavorite_productId_idx" ON "ProductFavorite"("productId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ProductFavorite_clientId_productId_key" ON "ProductFavorite"("clientId", "productId");
-
--- CreateIndex
-CREATE INDEX "ClientAddress_clientId_deletedAt_idx" ON "ClientAddress"("clientId", "deletedAt");
 
 -- CreateIndex
 CREATE INDEX "ProductColor_productId_idx" ON "ProductColor"("productId");
@@ -790,9 +570,6 @@ CREATE INDEX "Order_createdAt_idx" ON "Order"("createdAt");
 CREATE INDEX "OrderDetail_productVariantId_idx" ON "OrderDetail"("productVariantId");
 
 -- CreateIndex
-CREATE INDEX "OrderDetail_vendorOrderId_idx" ON "OrderDetail"("vendorOrderId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "OrderDetail_orderId_productVariantId_key" ON "OrderDetail"("orderId", "productVariantId");
 
 -- CreateIndex
@@ -810,80 +587,11 @@ CREATE INDEX "OrderStatusHistory_adminId_idx" ON "OrderStatusHistory"("adminId")
 -- CreateIndex
 CREATE INDEX "OrderStatusHistory_clientId_idx" ON "OrderStatusHistory"("clientId");
 
--- CreateIndex
-CREATE INDEX "OrderStatusHistory_vendorId_idx" ON "OrderStatusHistory"("vendorId");
-
--- CreateIndex
-CREATE INDEX "OrderStatusHistory_employeeId_idx" ON "OrderStatusHistory"("employeeId");
-
--- CreateIndex
-CREATE INDEX "EmployeeSalaryHistory_employeeId_idx" ON "EmployeeSalaryHistory"("employeeId");
-
--- CreateIndex
-CREATE INDEX "EmployeeSalaryHistory_adminId_idx" ON "EmployeeSalaryHistory"("adminId");
-
--- CreateIndex
-CREATE INDEX "EmployeeAttendance_employeeId_idx" ON "EmployeeAttendance"("employeeId");
-
--- CreateIndex
-CREATE INDEX "EmployeeAttendance_date_idx" ON "EmployeeAttendance"("date");
-
--- CreateIndex
-CREATE UNIQUE INDEX "EmployeeAttendance_employeeId_date_key" ON "EmployeeAttendance"("employeeId", "date");
-
--- CreateIndex
-CREATE INDEX "EmployeePayroll_employeeId_idx" ON "EmployeePayroll"("employeeId");
-
--- CreateIndex
-CREATE INDEX "EmployeePayroll_month_year_idx" ON "EmployeePayroll"("month", "year");
-
--- CreateIndex
-CREATE UNIQUE INDEX "EmployeePayroll_employeeId_month_year_key" ON "EmployeePayroll"("employeeId", "month", "year");
-
--- CreateIndex
-CREATE UNIQUE INDEX "VendorOrder_vendorOrderCode_key" ON "VendorOrder"("vendorOrderCode");
-
--- CreateIndex
-CREATE INDEX "VendorOrder_orderId_idx" ON "VendorOrder"("orderId");
-
--- CreateIndex
-CREATE INDEX "VendorOrder_vendorId_idx" ON "VendorOrder"("vendorId");
-
--- CreateIndex
-CREATE INDEX "VendorOrder_status_idx" ON "VendorOrder"("status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Shipment_trackingNumber_key" ON "Shipment"("trackingNumber");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Shipment_vendorOrderId_key" ON "Shipment"("vendorOrderId");
-
--- CreateIndex
-CREATE INDEX "Shipment_orderId_idx" ON "Shipment"("orderId");
-
--- CreateIndex
-CREATE INDEX "Shipment_vendorOrderId_idx" ON "Shipment"("vendorOrderId");
-
--- CreateIndex
-CREATE INDEX "Shipment_carrierId_idx" ON "Shipment"("carrierId");
-
--- CreateIndex
-CREATE INDEX "Shipment_status_idx" ON "Shipment"("status");
-
--- CreateIndex
-CREATE INDEX "ShipmentEvent_shipmentId_idx" ON "ShipmentEvent"("shipmentId");
-
--- CreateIndex
-CREATE INDEX "ShipmentEvent_createdAt_idx" ON "ShipmentEvent"("createdAt");
-
 -- AddForeignKey
-ALTER TABLE "Employee" ADD CONSTRAINT "Employee_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ClientAddress" ADD CONSTRAINT "ClientAddress_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Survey" ADD CONSTRAINT "Survey_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Survey" ADD CONSTRAINT "Survey_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "SurveyQuestion" ADD CONSTRAINT "SurveyQuestion_surveyId_fkey" FOREIGN KEY ("surveyId") REFERENCES "Survey"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -901,21 +609,6 @@ ALTER TABLE "SurveyResponse" ADD CONSTRAINT "SurveyResponse_clientId_fkey" FOREI
 ALTER TABLE "SurveyResponse" ADD CONSTRAINT "SurveyResponse_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_surveyId_fkey" FOREIGN KEY ("surveyId") REFERENCES "Survey"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_surveyResponseId_fkey" FOREIGN KEY ("surveyResponseId") REFERENCES "SurveyResponse"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "SurveyAnswer" ADD CONSTRAINT "SurveyAnswer_responseId_fkey" FOREIGN KEY ("responseId") REFERENCES "SurveyResponse"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -925,10 +618,19 @@ ALTER TABLE "SurveyAnswer" ADD CONSTRAINT "SurveyAnswer_questionId_fkey" FOREIGN
 ALTER TABLE "SurveyAnswer" ADD CONSTRAINT "SurveyAnswer_optionId_fkey" FOREIGN KEY ("optionId") REFERENCES "SurveyOption"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_surveyId_fkey" FOREIGN KEY ("surveyId") REFERENCES "Survey"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_surveyResponseId_fkey" FOREIGN KEY ("surveyResponseId") REFERENCES "SurveyResponse"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Voucher" ADD CONSTRAINT "Voucher_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "VoucherDetail" ADD CONSTRAINT "VoucherDetail_voucherId_fkey" FOREIGN KEY ("voucherId") REFERENCES "Voucher"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -943,16 +645,10 @@ ALTER TABLE "VoucherDetail" ADD CONSTRAINT "VoucherDetail_orderId_fkey" FOREIGN 
 ALTER TABLE "Product" ADD CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Product" ADD CONSTRAINT "Product_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "ProductFavorite" ADD CONSTRAINT "ProductFavorite_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ProductFavorite" ADD CONSTRAINT "ProductFavorite_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ClientAddress" ADD CONSTRAINT "ClientAddress_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ProductColor" ADD CONSTRAINT "ProductColor_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -967,7 +663,7 @@ ALTER TABLE "Review" ADD CONSTRAINT "Review_clientId_fkey" FOREIGN KEY ("clientI
 ALTER TABLE "Review" ADD CONSTRAINT "Review_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_orderDetailId_fkey" FOREIGN KEY ("orderDetailId") REFERENCES "OrderDetail"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Review" ADD CONSTRAINT "Review_orderDetailId_fkey" FOREIGN KEY ("orderDetailId") REFERENCES "OrderDetail"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Cart" ADD CONSTRAINT "Cart_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -988,9 +684,6 @@ ALTER TABLE "OrderDetail" ADD CONSTRAINT "OrderDetail_orderId_fkey" FOREIGN KEY 
 ALTER TABLE "OrderDetail" ADD CONSTRAINT "OrderDetail_productVariantId_fkey" FOREIGN KEY ("productVariantId") REFERENCES "ProductVariant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "OrderDetail" ADD CONSTRAINT "OrderDetail_vendorOrderId_fkey" FOREIGN KEY ("vendorOrderId") REFERENCES "VendorOrder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1001,40 +694,4 @@ ALTER TABLE "OrderStatusHistory" ADD CONSTRAINT "OrderStatusHistory_adminId_fkey
 
 -- AddForeignKey
 ALTER TABLE "OrderStatusHistory" ADD CONSTRAINT "OrderStatusHistory_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "OrderStatusHistory" ADD CONSTRAINT "OrderStatusHistory_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "OrderStatusHistory" ADD CONSTRAINT "OrderStatusHistory_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "EmployeeSalaryHistory" ADD CONSTRAINT "EmployeeSalaryHistory_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "EmployeeSalaryHistory" ADD CONSTRAINT "EmployeeSalaryHistory_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "Admin"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "EmployeeAttendance" ADD CONSTRAINT "EmployeeAttendance_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "EmployeePayroll" ADD CONSTRAINT "EmployeePayroll_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "VendorOrder" ADD CONSTRAINT "VendorOrder_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "VendorOrder" ADD CONSTRAINT "VendorOrder_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Shipment" ADD CONSTRAINT "Shipment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Shipment" ADD CONSTRAINT "Shipment_vendorOrderId_fkey" FOREIGN KEY ("vendorOrderId") REFERENCES "VendorOrder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Shipment" ADD CONSTRAINT "Shipment_carrierId_fkey" FOREIGN KEY ("carrierId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ShipmentEvent" ADD CONSTRAINT "ShipmentEvent_shipmentId_fkey" FOREIGN KEY ("shipmentId") REFERENCES "Shipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

@@ -46,7 +46,7 @@ export class PrismaService
     return data;
   }
 
-  private readonly ACCOUNT_MODELS = ['Admin', 'Client', 'Vendor', 'Employee'];
+  private readonly ACCOUNT_MODELS = ['Admin', 'Client'];
   private readonly MODEL_FIELDS = new Map(
     Prisma.dmmf.datamodel.models.map((model) => [
       model.name,
@@ -135,12 +135,7 @@ export class PrismaService
             if (!hasDeletedAt(context.$name)) {
               throw new Error(`${context.$name} does not support soft delete`);
             }
-            const isAccount = [
-              'Admin',
-              'Client',
-              'Vendor',
-              'Employee',
-            ].includes(context.$name);
+            const isAccount = ['Admin', 'Client'].includes(context.$name);
             const result = await context.updateMany({
               data: isAccount
                 ? { status: 'inactive', deletedAt: null }
@@ -157,12 +152,7 @@ export class PrismaService
             if (!hasDeletedAt(context.$name)) {
               throw new Error(`${context.$name} does not support restore`);
             }
-            const isAccount = [
-              'Admin',
-              'Client',
-              'Vendor',
-              'Employee',
-            ].includes(context.$name);
+            const isAccount = ['Admin', 'Client'].includes(context.$name);
             const result = await context.updateMany({
               data: isAccount
                 ? { status: 'active', deletedAt: null }

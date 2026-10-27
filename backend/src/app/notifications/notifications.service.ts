@@ -17,7 +17,6 @@ export class NotificationsService {
 
   private getTargetWhere(user: UserInfo) {
     if (user.role === 'admin') return { adminId: user.userID };
-    if (user.role === 'vendor') return { vendorId: user.userID };
     return { clientId: user.userID };
   }
 
@@ -48,7 +47,6 @@ export class NotificationsService {
               status: true,
               scope: true,
               admin: { select: { fullName: true } },
-              vendor: { select: { storeName: true, fullName: true } },
             },
           },
           response: {

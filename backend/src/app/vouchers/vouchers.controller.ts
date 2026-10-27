@@ -44,19 +44,19 @@ export class VouchersController {
   }
 
   @Post()
-  @Roles('admin', 'vendor')
+  @Roles('admin')
   create(@Body() dto: CreateVoucherDto, @CurrentUser() user: UserInfo) {
     return this.vouchersService.create(dto, user);
   }
 
   @Post('preview')
-  @Roles('client', 'vendor', 'admin')
+  @Roles('client', 'admin')
   preview(@Body() dto: PreviewVoucherDto, @CurrentUser() user: UserInfo) {
     return this.vouchersService.preview(dto, user.userID);
   }
 
   @Get('mine')
-  @Roles('admin', 'vendor')
+  @Roles('admin')
   getMine(@CurrentUser() user: UserInfo) {
     return this.vouchersService.getMine(user.userID);
   }
@@ -68,13 +68,13 @@ export class VouchersController {
   }
 
   @Get('available')
-  @Roles('client', 'vendor', 'admin')
+  @Roles('client', 'admin')
   getAvailable() {
     return this.vouchersService.getAvailable();
   }
 
   @Get(':id')
-  @Roles('admin', 'vendor')
+  @Roles('admin')
   getById(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserInfo,
@@ -83,7 +83,7 @@ export class VouchersController {
   }
 
   @Patch(':id')
-  @Roles('admin', 'vendor')
+  @Roles('admin')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateVoucherDto,
@@ -93,7 +93,7 @@ export class VouchersController {
   }
 
   @Patch(':id/status')
-  @Roles('admin', 'vendor')
+  @Roles('admin')
   setStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: VoucherStatusDto,
@@ -108,7 +108,7 @@ export class VouchersController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'vendor')
+  @Roles('admin')
   remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: UserInfo,
