@@ -16,6 +16,7 @@ import {
   User,
 } from 'lucide-react';
 import { surveysApi, usersApi } from '../../api';
+import { useSearchParams } from 'react-router-dom';
 import {
   CLIENT_TOPICS,
   CLIENT_TEMPLATES,
@@ -23,8 +24,12 @@ import {
 } from '../../data/surveyTemplates';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+const dateBoundary = (date, end = false) => date
+  ? new Date(`${date}T${end ? '23:59:59.999' : '00:00:00.000'}+07:00`).toISOString()
+  : undefined;
 
 export default function SurveyManagement() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('list'); // 'list' | 'create' | 'results'
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,6 +39,8 @@ export default function SurveyManagement() {
   // Results State
   const [selectedSurveyId, setSelectedSurveyId] = useState(null);
   const [surveyResults, setSurveyResults] = useState(null);
+  const [focusedResponse, setFocusedResponse] = useState(null);
+  const [focusedResponseError, setFocusedResponseError] = useState('');
   const [resultsLoading, setResultsLoading] = useState(false);
 
   // Preview State
@@ -50,6 +57,8 @@ export default function SurveyManagement() {
   const [triggerType, setTriggerType] = useState('manual');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [extendSurvey, setExtendSurvey] = useState(null);
+  const [extensionDate, setExtensionDate] = useState('');
   const [questions, setQuestions] = useState(
     initialPreset?.questions.map((q, idx) => ({ ...q, id: String(idx + 1) })) || []
   );
@@ -131,6 +140,35 @@ export default function SurveyManagement() {
       alert('Không thể tải kết quả: ' + (err.response?.data?.message || err.message));
     } finally {
       setResultsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const surveyId = searchParams.get('surveyId');
+    const responseId = searchParams.get('responseId');
+    if (!surveyId) return;
+    handleOpenResults(surveyId);
+    if (responseId) {
+      surveysApi.getResponse(surveyId, responseId)
+        .then((res) => { setFocusedResponse(res.data); setFocusedResponseError(''); })
+        .catch(() => { setFocusedResponse(null); setFocusedResponseError('Không tìm thấy phản hồi khảo sát này.'); });
+    } else {
+      setFocusedResponse(null);
+      setFocusedResponseError('');
+    }
+  }, [searchParams]);
+
+  const handleExtend = async () => {
+    if (!extensionDate || !extendSurvey) return;
+    try {
+      await surveysApi.extendSchedule(extendSurvey.id, dateBoundary(extensionDate, true));
+      const surveyId = extendSurvey.id;
+      setExtendSurvey(null);
+      setExtensionDate('');
+      await loadSurveys();
+      if (selectedSurveyId === surveyId) await handleOpenResults(surveyId);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Không thể gia hạn khảo sát');
     }
   };
 
@@ -234,6 +272,10 @@ export default function SurveyManagement() {
   };
 
   const handleCreateSurvey = async (activateImmediately = false) => {
+    if (startDate && endDate && endDate < startDate) {
+      alert('Ngày kết thúc phải sau ngày bắt đầu');
+      return;
+    }
     const surveyTitle =
       title.trim() || (selectedTopic.includes('Khác') ? customTopic : selectedTopic);
     if (!surveyTitle) {
@@ -273,8 +315,8 @@ export default function SurveyManagement() {
         audienceType,
         recipientIds: audienceType === 'selected_users' ? selectedCustomerIds : [],
         triggerType,
-        startDate: startDate ? new Date(startDate).toISOString() : undefined,
-        endDate: endDate ? new Date(endDate).toISOString() : undefined,
+        startDate: dateBoundary(startDate),
+        endDate: dateBoundary(endDate, true),
         questions: questions.map((q, idx) => ({
           question: q.question.trim(),
           type: q.type,
@@ -332,7 +374,7 @@ export default function SurveyManagement() {
   });
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -459,16 +501,16 @@ export default function SurveyManagement() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div>
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
                     <tr>
-                      <th className="px-6 py-4">Tiêu đề khảo sát</th>
-                      <th className="px-4 py-4">Đối tượng nhận</th>
-                      <th className="px-4 py-4">Thời gian</th>
-                      <th className="px-4 py-4">Trạng thái</th>
-                      <th className="px-4 py-4 text-center">Lượt phản hồi</th>
-                      <th className="px-6 py-4 text-right">Thao tác</th>
+                      <th className="px-4 py-3.5 w-full">Tiêu đề khảo sát</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap">Đối tượng nhận</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap">Thời gian</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap">Trạng thái</th>
+                      <th className="px-3 py-3.5 text-center whitespace-nowrap">Lượt phản hồi</th>
+                      <th className="px-4 py-3.5 text-right whitespace-nowrap">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -477,23 +519,23 @@ export default function SurveyManagement() {
                         key={survey.id}
                         className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
                       >
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-slate-900 dark:text-white max-w-sm truncate">
+                        <td className="px-4 py-3.5 w-full max-w-0">
+                          <div className="font-semibold text-slate-900 dark:text-white truncate" title={survey.title}>
                             {survey.title}
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate" title={survey.description || 'Không có mô tả'}>
                             {survey.description || 'Không có mô tả'}
                           </div>
                         </td>
-                        <td className="px-4 py-4">
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                            <User className="w-3 h-3" />
+                        <td className="px-3 py-3.5 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                            <User className="w-3.5 h-3.5 shrink-0" />
                             {survey.audienceType === 'selected_users'
                               ? `Khách hàng được chọn (${survey.recipientIds?.length || 0})`
                               : 'Toàn bộ Khách hàng'}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-xs text-slate-500">
+                        <td className="px-3 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                           {survey.startDate
                             ? new Date(survey.startDate).toLocaleDateString('vi-VN')
                             : 'Bắt đầu ngay'}
@@ -502,31 +544,41 @@ export default function SurveyManagement() {
                             ? new Date(survey.endDate).toLocaleDateString('vi-VN')
                             : 'Không giới hạn'}
                         </td>
-                        <td className="px-4 py-4">
-                          {survey.status === 'active' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                        <td className="px-3 py-3.5 whitespace-nowrap">
+                          {survey.status === 'active' && survey.startDate && new Date(survey.startDate) > new Date() && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                              Sắp diễn ra
+                            </span>
+                          )}
+                          {survey.status === 'active' && survey.endDate && new Date(survey.endDate) < new Date() && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                              Hết hạn
+                            </span>
+                          )}
+                          {survey.status === 'active' && (!survey.startDate || new Date(survey.startDate) <= new Date()) && (!survey.endDate || new Date(survey.endDate) >= new Date()) && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                               Đang diễn ra
                             </span>
                           )}
                           {survey.status === 'draft' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                               Bản nháp
                             </span>
                           )}
                           {survey.status === 'closed' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
                               Đã đóng
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-4 text-center font-bold text-slate-700 dark:text-slate-300">
+                        <td className="px-3 py-3.5 text-center font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                           {survey._count?.responses || 0}
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => handleOpenResults(survey.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-blue-600 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 border border-blue-200/60 dark:border-blue-800/60 transition-colors"
                               title="Thống kê kết quả khảo sát"
                             >
                               <BarChart3 className="w-3.5 h-3.5" />
@@ -534,7 +586,7 @@ export default function SurveyManagement() {
                             </button>
                             <button
                               onClick={() => setPreviewSurvey(survey)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                               title="Xem trước câu hỏi"
                             >
                               <Eye className="w-4 h-4" />
@@ -544,7 +596,7 @@ export default function SurveyManagement() {
                                 onClick={() => survey.audienceType === 'selected_users'
                                   ? openRecipientSelection(survey)
                                   : handleChangeStatus(survey.id, 'active')}
-                                className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
+                                className="px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-colors"
                                 title="Kích hoạt và gửi thông báo tới khách hàng"
                               >
                                 Gửi khảo sát
@@ -553,11 +605,30 @@ export default function SurveyManagement() {
                             {survey.status === 'active' && (
                               <button
                                 onClick={() => handleChangeStatus(survey.id, 'closed')}
-                                className="px-2.5 py-1 text-xs font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100"
+                                className="px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
                                 title="Đóng khảo sát"
                               >
                                 Đóng
                               </button>
+                            )}
+                            {survey.endDate && (survey.status === 'active' || survey.status === 'closed') && (
+                              <button
+                                onClick={() => { setExtendSurvey(survey); setExtensionDate(''); }}
+                                className="px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                              >
+                                Gia hạn
+                              </button>
+                            )}
+                            {survey.status === 'closed' && (!survey.endDate || new Date(survey.endDate) >= new Date()) && (
+                              <button
+                                onClick={() => handleChangeStatus(survey.id, 'active')}
+                                className="px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                              >
+                                Mở lại
+                              </button>
+                            )}
+                            {survey.status === 'closed' && survey.endDate && new Date(survey.endDate) < new Date() && (
+                              <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">Gia hạn để mở lại</span>
                             )}
                           </div>
                         </td>
@@ -850,16 +921,20 @@ export default function SurveyManagement() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Hạn chót trả lời khảo sát
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Từ ngày</label>
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100" />
+                </div>
+                <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Đến hết ngày</label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100"
                 />
+                </div>
               </div>
 
               <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl text-xs text-blue-800 dark:text-blue-300">
@@ -921,6 +996,18 @@ export default function SurveyManagement() {
             </div>
           ) : (
             <>
+              {focusedResponseError && <p className="text-sm text-rose-600 dark:text-rose-400">{focusedResponseError}</p>}
+              {focusedResponse && (
+                <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 space-y-2">
+                  <div className="flex justify-between gap-3">
+                    <strong className="text-slate-900 dark:text-white">Phản hồi của {focusedResponse.client?.fullName || 'Khách hàng'}</strong>
+                    <button onClick={() => { setFocusedResponse(null); setSearchParams({ surveyId: selectedSurveyId }); }} className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">Đóng</button>
+                  </div>
+                  {focusedResponse.answers?.map((answer) => (
+                    <p key={answer.id} className="text-sm text-slate-700 dark:text-slate-200"><strong className="text-slate-900 dark:text-white">{answer.question?.question}:</strong> {answer.textAnswer || answer.option?.content || answer.ratingValue || '—'}</p>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                   <div className="text-xs text-slate-500 font-medium">Khách hàng được mời</div>
@@ -930,9 +1017,9 @@ export default function SurveyManagement() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="text-xs text-slate-500 font-medium">Đã mở xem</div>
+                  <div className="text-xs text-slate-500 font-medium">Chưa mở</div>
                   <div className="text-2xl font-bold text-blue-600 mt-1">
-                    {surveyResults.summary?.openedCount || 0}
+                    {surveyResults.summary?.unopenedCount || 0}
                   </div>
                 </div>
 
@@ -944,9 +1031,9 @@ export default function SurveyManagement() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="text-xs text-slate-500 font-medium">Chưa trả lời</div>
+                  <div className="text-xs text-slate-500 font-medium">Đã mở, chưa trả lời</div>
                   <div className="text-2xl font-bold text-amber-500 mt-1">
-                    {surveyResults.summary?.pendingCount || 0}
+                    {surveyResults.summary?.openedPendingCount || 0}
                   </div>
                 </div>
 
@@ -957,6 +1044,11 @@ export default function SurveyManagement() {
                   </div>
                 </div>
               </div>
+              {(surveyResults.summary?.skippedCount > 0 || surveyResults.summary?.expiredCount > 0) && (
+                <p className="text-xs text-slate-500">
+                  Đã bỏ qua: {surveyResults.summary?.skippedCount || 0} · Hết hạn chưa trả lời: {surveyResults.summary?.expiredCount || 0}
+                </p>
+              )}
 
               <div className="space-y-6">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">
@@ -1097,6 +1189,74 @@ export default function SurveyManagement() {
         </div>
       )}
 
+      {extendSurvey && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setExtendSurvey(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-slate-200 dark:border-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
+                  <Calendar className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                    Gia hạn khảo sát
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+                    {extendSurvey.title}
+                  </p>
+                  {extendSurvey.endDate && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Hạn hiện tại: <span className="font-semibold text-slate-700 dark:text-slate-200">{new Date(extendSurvey.endDate).toLocaleDateString('vi-VN')}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setExtendSurvey(null)}
+                aria-label="Đóng"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Hạn mới (hết ngày)
+              </label>
+              <input
+                type="date"
+                value={extensionDate}
+                onChange={(e) => setExtensionDate(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:[color-scheme:dark]"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => setExtendSurvey(null)}
+                className="px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleExtend}
+                disabled={!extensionDate}
+                className="px-4 py-2.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Lưu hạn mới
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal */}
       {recipientSurvey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -1104,15 +1264,15 @@ export default function SurveyManagement() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Chọn khách hàng nhận khảo sát</h3>
-                <p className="text-sm text-slate-500 mt-1">{recipientSurvey.title}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{recipientSurvey.title}</p>
               </div>
-              <button onClick={() => setRecipientSurvey(null)} disabled={recipientSubmitting} aria-label="Đóng" className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setRecipientSurvey(null)} disabled={recipientSubmitting} aria-label="Đóng" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            {recipientLoading ? <p className="text-sm text-slate-500">Đang tải khách hàng...</p> : (
+            {recipientLoading ? <p className="text-sm text-slate-500 dark:text-slate-400">Đang tải khách hàng...</p> : (
               <>
-                <p className="text-xs text-slate-500">{draftRecipientIds.length} khách hàng đã chọn</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{draftRecipientIds.length} khách hàng đã chọn</p>
                 <div className="max-h-72 overflow-y-auto space-y-1">
                   {customers.map((customer) => (
                     <label key={customer.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
@@ -1126,13 +1286,13 @@ export default function SurveyManagement() {
                       <span className="text-sm text-slate-800 dark:text-slate-200">{customer.fullName} ({customer.email})</span>
                     </label>
                   ))}
-                  {customers.length === 0 && <p className="text-sm text-slate-500">Chưa có khách hàng đang hoạt động.</p>}
+                  {customers.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">Chưa có khách hàng đang hoạt động.</p>}
                 </div>
               </>
             )}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setRecipientSurvey(null)} disabled={recipientSubmitting} className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700">Hủy</button>
-              <button onClick={sendSelectedSurvey} disabled={recipientLoading || recipientSubmitting || !draftRecipientIds.length} className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white disabled:opacity-50">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button onClick={() => setRecipientSurvey(null)} disabled={recipientSubmitting} className="px-4 py-2 text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Hủy</button>
+              <button onClick={sendSelectedSurvey} disabled={recipientLoading || recipientSubmitting || !draftRecipientIds.length} className="px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors">
                 {recipientSubmitting ? 'Đang gửi...' : 'Gửi khảo sát'}
               </button>
             </div>
@@ -1144,7 +1304,7 @@ export default function SurveyManagement() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-600">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
                   Xem trước bảng khảo sát
                 </span>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">
@@ -1153,7 +1313,7 @@ export default function SurveyManagement() {
               </div>
               <button
                 onClick={() => setPreviewSurvey(null)}
-                className="p-1 text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1168,7 +1328,7 @@ export default function SurveyManagement() {
               {previewSurvey.questions?.map((q, idx) => (
                 <div
                   key={q.id}
-                  className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border text-xs space-y-2"
+                  className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-xs space-y-2"
                 >
                   <div className="font-semibold text-slate-800 dark:text-slate-200">
                     {idx + 1}. {q.question} {q.required && <span className="text-rose-500">*</span>}
@@ -1183,13 +1343,13 @@ export default function SurveyManagement() {
                   {q.options?.map((opt) => (
                     <div
                       key={opt.id}
-                      className="p-2 bg-white dark:bg-slate-800 rounded border text-slate-600 dark:text-slate-300"
+                      className="p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                     >
                       • {opt.content}
                     </div>
                   ))}
                   {q.type === 'text' && (
-                    <div className="p-2 bg-white dark:bg-slate-800 rounded border text-slate-400 italic">
+                    <div className="p-2 bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 text-slate-400 italic">
                       [Khách hàng nhập câu trả lời tự luận]
                     </div>
                   )}

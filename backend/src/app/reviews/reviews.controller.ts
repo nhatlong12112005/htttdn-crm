@@ -38,6 +38,12 @@ export class ReviewsController {
     return this.reviewsService.listAll(query);
   }
 
+  @Get('admin/:id')
+  @Roles('admin')
+  getAdminReview(@Param('id', ParseUUIDPipe) id: string) {
+    return this.reviewsService.getAdminReview(id);
+  }
+
   @Post()
   @Roles('client')
   create(@Body() dto: CreateReviewDto, @User() user: UserInfo) {

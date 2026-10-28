@@ -11,12 +11,16 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { reviewsApi } from '../../api';
+import { useSearchParams } from 'react-router-dom';
 import { formatDate } from '../../utils/formatHelpers';
 import { Button, Modal } from '../../components/ui';
 
 export default function ReviewManagement() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusedReviewId = searchParams.get('reviewId');
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -31,20 +35,27 @@ export default function ReviewManagement() {
   const fetchReviews = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await reviewsApi.getReviews({
-        page,
-        itemPerPage: itemsPerPage,
-      });
-      const data = res.data;
-      setReviews(data.list || []);
-      setTotalPages(data.totalPages || 1);
-      setTotalItems(data.totalItems || 0);
+      if (focusedReviewId) {
+        const res = await reviewsApi.getReview(focusedReviewId);
+        setReviews([res.data]);
+        setTotalPages(1);
+        setTotalItems(1);
+      } else {
+        const res = await reviewsApi.getReviews({ page, itemPerPage: itemsPerPage });
+        const data = res.data;
+        setReviews(data.list || []);
+        setTotalPages(data.totalPages || 1);
+        setTotalItems(data.totalItems || 0);
+      }
+      setLoadError('');
     } catch (err) {
       console.error('Error fetching reviews:', err);
+      setReviews([]);
+      setLoadError(focusedReviewId ? 'Phản hồi này không còn tồn tại hoặc bạn không có quyền xem.' : 'Không thể tải danh sách phản hồi.');
     } finally {
       setLoading(false);
     }
-  }, [page, itemsPerPage]);
+  }, [page, itemsPerPage, focusedReviewId]);
 
   useEffect(() => {
     fetchReviews();
@@ -97,6 +108,13 @@ export default function ReviewManagement() {
         </div>
       </div>
 
+      {focusedReviewId && (
+        <button className="text-sm font-semibold text-blue-600 hover:underline" onClick={() => setSearchParams({})}>
+          ← Xem tất cả phản hồi
+        </button>
+      )}
+      {loadError && <p className="text-sm text-rose-600">{loadError}</p>}
+
       <div className="bg-white dark:bg-slate-900 transition-colors rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="overflow-x-auto">
           {loading ? (
@@ -144,7 +162,7 @@ export default function ReviewManagement() {
                   return (
                     <tr
                       key={review.id}
-                      className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+                      className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors ${review.id === focusedReviewId ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                     >
                       <td className="px-4 py-3 text-sm text-slate-800 dark:text-slate-100">
                         <div className="font-semibold">{userName}</div>

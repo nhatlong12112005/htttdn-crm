@@ -19,6 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:crm:live": "node test/crm-live-smoke.cjs",
+    "test:system:browser": "node test/system-browser.e2e.cjs",
+    "test:system:live": "node test/system-live.e2e.cjs",
     "prisma:migrate:dev": "npx prisma migrate dev --name init",
     "prisma:generate": "npx prisma generate",
     "prisma:generate:zod": "npx prisma generate zod"

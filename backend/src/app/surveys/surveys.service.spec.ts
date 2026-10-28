@@ -116,14 +116,28 @@ describe('SurveysService', () => {
           findFirst: jest.fn().mockResolvedValue({
             ...managementSurvey(),
             audienceType: SurveyAudienceType.selected_users,
-            questions: [{ id: questionId, question: 'Đánh giá', type: SurveyQuestionType.rating, required: true, position: 1, options: [] }],
+            questions: [
+              {
+                id: questionId,
+                question: 'Đánh giá',
+                type: SurveyQuestionType.rating,
+                required: true,
+                position: 1,
+                options: [],
+              },
+            ],
           }),
         },
       },
     } as unknown as PrismaService);
 
-    await expect(service.changeStatus(surveyId, SurveyStatus.active, user(adminId, 'admin')))
-      .rejects.toThrow('Vui lòng chọn ít nhất một khách hàng nhận khảo sát');
+    await expect(
+      service.changeStatus(
+        surveyId,
+        SurveyStatus.active,
+        user(adminId, 'admin'),
+      ),
+    ).rejects.toThrow('Vui lòng chọn ít nhất một khách hàng nhận khảo sát');
   });
 
   it('stores every selected option of a multiple-choice answer in its own row', async () => {
@@ -160,6 +174,13 @@ describe('SurveysService', () => {
       $transaction: jest.fn(
         (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
       ),
+      surveyResponse: {
+        findUniqueOrThrow: jest
+          .fn()
+          .mockResolvedValue({ surveyId, survey: { title: 'Khảo sát' } }),
+      },
+      admin: { findMany: jest.fn().mockResolvedValue([{ id: adminId }]) },
+      notification: { createMany: jest.fn() },
     };
     Object.assign(prisma, {
       extended: prisma,
@@ -188,6 +209,19 @@ describe('SurveysService', () => {
             },
           },
         }),
+      }),
+    );
+    expect(prisma.notification.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            data: {
+              kind: 'survey_response',
+              surveyId,
+              responseId: '77777777-7777-4777-8777-777777777777',
+            },
+          }),
+        ],
       }),
     );
   });
@@ -238,5 +272,162 @@ describe('SurveysService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(tx.surveyResponse.update).not.toHaveBeenCalled();
+  });
+
+  it('counts invitations separately from submitted answers and exclusive viewing stages', async () => {
+    const survey = {
+      ...managementSurvey(),
+      questions: [],
+      _count: { responses: 2 },
+    };
+    const prisma = {
+      survey: { findFirst: jest.fn().mockResolvedValue(survey) },
+      surveyResponse: {
+        groupBy: jest.fn().mockResolvedValue([
+          { status: SurveyResponseStatus.pending, _count: { _all: 1 } },
+          { status: SurveyResponseStatus.submitted, _count: { _all: 1 } },
+        ]),
+        count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0),
+      },
+    };
+    Object.assign(prisma, { extended: prisma });
+    const service = new SurveysService(prisma as unknown as PrismaService);
+    const result = await service.getResults(
+      surveyId,
+      user(adminId, 'admin'),
+      {} as never,
+    );
+    expect(result.summary).toMatchObject({
+      invitedCount: 2,
+      unopenedCount: 1,
+      openedPendingCount: 0,
+      responseCount: 1,
+      completionRate: 0.5,
+    });
+  });
+
+  it('extends only unanswered invitations and their notification deadline', async () => {
+    const oldEnd = new Date('2026-10-27T16:59:59.999Z');
+    const newEnd = '2027-10-31T16:59:59.999Z';
+    const tx = {
+      survey: {
+        update: jest.fn(),
+        findUniqueOrThrow: jest
+          .fn()
+          .mockResolvedValue({ id: surveyId, endDate: new Date(newEnd) }),
+      },
+      surveyResponse: { updateMany: jest.fn() },
+      notification: { updateMany: jest.fn() },
+    };
+    const prisma = {
+      survey: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...managementSurvey(),
+          status: SurveyStatus.active,
+          endDate: oldEnd,
+        }),
+      },
+      extendedTransaction: jest.fn(
+        (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+      ),
+    };
+    Object.assign(prisma, { extended: prisma });
+    const service = new SurveysService(prisma as unknown as PrismaService);
+    await service.extendSchedule(surveyId, newEnd, user(adminId, 'admin'));
+    expect(tx.surveyResponse.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          surveyId,
+          status: {
+            in: [SurveyResponseStatus.pending, SurveyResponseStatus.expired],
+          },
+        },
+        data: {
+          expiresAt: new Date(newEnd),
+          status: SurveyResponseStatus.pending,
+        },
+      }),
+    );
+    expect(tx.notification.updateMany).toHaveBeenCalled();
+  });
+
+  it('blocks submission after the survey end date on the server', async () => {
+    const tx = {
+      surveyResponse: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: surveyId,
+          status: SurveyResponseStatus.pending,
+          expiresAt: null,
+          answers: [],
+          survey: {
+            ...managementSurvey(),
+            status: SurveyStatus.active,
+            endDate: new Date('2020-01-01T00:00:00Z'),
+          },
+        }),
+        update: jest.fn(),
+      },
+    };
+    const prisma = {
+      extendedTransaction: jest.fn(
+        (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+      ),
+    };
+    Object.assign(prisma, { extended: prisma });
+    const service = new SurveysService(prisma as unknown as PrismaService);
+    await expect(
+      service.submitResponse(surveyId, customerId, { answers: [] }),
+    ).rejects.toThrow('Khảo sát đã hết hạn');
+    expect(tx.surveyResponse.update).not.toHaveBeenCalled();
+  });
+
+  it('reopens a survey without sending an existing invitation again', async () => {
+    const tx = {
+      survey: {
+        update: jest.fn().mockResolvedValue({
+          ...managementSurvey(),
+          status: SurveyStatus.active,
+          triggerType: SurveyTriggerType.manual,
+        }),
+      },
+      client: { findMany: jest.fn().mockResolvedValue([{ id: customerId }]) },
+      surveyResponse: {
+        createMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: surveyId,
+            clientId: customerId,
+            orderId: null,
+            notification: { id: 'existing' },
+          },
+        ]),
+      },
+      notification: {
+        createMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const prisma = {
+      survey: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...managementSurvey(),
+          status: SurveyStatus.closed,
+          questions: [{ id: questionId }],
+        }),
+      },
+      extendedTransaction: jest.fn(
+        (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+      ),
+    };
+    Object.assign(prisma, { extended: prisma });
+    const service = new SurveysService(prisma as unknown as PrismaService);
+    const result = await service.changeStatus(
+      surveyId,
+      SurveyStatus.active,
+      user(adminId, 'admin'),
+    );
+    expect(result.deliveredCount).toBe(0);
+    expect(tx.surveyResponse.createMany).not.toHaveBeenCalled();
+    expect(tx.notification.createMany).not.toHaveBeenCalled();
   });
 });

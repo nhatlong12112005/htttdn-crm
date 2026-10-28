@@ -56,7 +56,9 @@ export class PaymentsService {
     });
     if (!payment) throw new NotFoundException('Thanh toán không tồn tại');
     if (payment.order.clientId !== user.userID)
-      throw new ForbiddenException('Bạn không có quyền thanh toán đơn hàng này');
+      throw new ForbiddenException(
+        'Bạn không có quyền thanh toán đơn hàng này',
+      );
     if (payment.method === PaymentMethod.cod)
       throw new BadRequestException('Đơn COD được thanh toán khi giao hàng');
     return this.updateStatus(id, {
@@ -79,7 +81,9 @@ export class PaymentsService {
       refunded: [],
     };
     if (!transitions[current.status].includes(dto.status))
-      throw new BadRequestException('Không thể chuyển trạng thái thanh toán này');
+      throw new BadRequestException(
+        'Không thể chuyển trạng thái thanh toán này',
+      );
     if (
       current.order.status === OrderStatus.cancelled &&
       dto.status === PaymentStatus.paid
@@ -110,6 +114,7 @@ export class PaymentsService {
       data: {
         ...dto,
         paidAt: dto.status === PaymentStatus.paid ? now : undefined,
+        refundedAt: dto.status === PaymentStatus.refunded ? now : undefined,
         failedAt: dto.status === PaymentStatus.failed ? now : undefined,
       },
       include: paymentInclude,

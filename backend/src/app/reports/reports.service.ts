@@ -1,7 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import {
-  normalizePagination,
-} from 'src/common/utils/paginaton-util/pagintion-util.service';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { normalizePagination } from 'src/common/utils/paginaton-util/pagintion-util.service';
 import { OrderStatus, Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,6 +8,7 @@ import type { UserInfo } from 'src/common/decorators/user.decorator';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { CustomerReportQueryDto } from './dto/customer-report.dto';
 import { AnalyticsReportQueryDto } from './dto/analytics-report.dto';
+import { ReconciliationQueryDto } from './dto/reconciliation-query.dto';
 
 export interface FinanceConfigTier {
   id: string;
@@ -23,6 +22,126 @@ export interface FinanceConfigTier {
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
   constructor(private readonly prisma: PrismaService) {}
+
+  async reconciliation(query: ReconciliationQueryDto) {
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const startDay = query.startDate || '2020-01-01';
+    const endDay = query.endDate || today;
+    const start = new Date(`${startDay}T00:00:00.000+07:00`);
+    const end = new Date(`${endDay}T23:59:59.999+07:00`);
+    if (end < start)
+      throw new BadRequestException('Ngày kết thúc phải sau ngày bắt đầu');
+    const range = { gte: start, lte: end };
+    const allWhere: Prisma.OrderWhereInput = {
+      OR: [
+        { status: OrderStatus.completed, createdAt: range },
+        { payment: { is: { paidAt: range } } },
+        { payment: { is: { refundedAt: range } } },
+      ],
+    };
+    const kind = query.kind || 'all';
+    const where: Prisma.OrderWhereInput =
+      kind === 'gmv'
+        ? { status: OrderStatus.completed, createdAt: range }
+        : kind === 'paid'
+          ? { payment: { is: { paidAt: range } } }
+          : kind === 'refund'
+            ? { payment: { is: { refundedAt: range } } }
+            : kind === 'net'
+              ? {
+                  OR: [
+                    { payment: { is: { paidAt: range } } },
+                    { payment: { is: { refundedAt: range } } },
+                  ],
+                }
+              : allWhere;
+    const page = query.page || 1;
+    const itemPerPage = query.itemPerPage || 20;
+    const [gmvTotal, cashInTotal, refundTotal, totalItems, orders] =
+      await Promise.all([
+        this.prisma.extended.order.aggregate({
+          where: { status: OrderStatus.completed, createdAt: range },
+          _sum: { totalAmount: true },
+        }),
+        this.prisma.extended.payment.aggregate({
+          where: { paidAt: range },
+          _sum: { amount: true },
+        }),
+        this.prisma.extended.payment.aggregate({
+          where: { refundedAt: range },
+          _sum: { amount: true },
+        }),
+        this.prisma.extended.order.count({ where }),
+        this.prisma.extended.order.findMany({
+          where,
+          skip: (page - 1) * itemPerPage,
+          take: itemPerPage,
+          include: {
+            client: { select: { id: true, fullName: true } },
+            payment: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+    const totalGmv = Number(gmvTotal._sum.totalAmount || 0);
+    const grossCashIn = Number(cashInTotal._sum.amount || 0);
+    const refundedAmount = Number(refundTotal._sum.amount || 0);
+    const rows = orders.map((order) => {
+      const amount = Number(order.totalAmount);
+      const paymentAmount = Number(order.payment?.amount ?? order.totalAmount);
+      const completedInPeriod =
+        order.status === OrderStatus.completed &&
+        order.createdAt >= start &&
+        order.createdAt <= end;
+      const paidInPeriod =
+        !!order.payment?.paidAt &&
+        order.payment.paidAt >= start &&
+        order.payment.paidAt <= end;
+      const refundedInPeriod =
+        !!order.payment?.refundedAt &&
+        order.payment.refundedAt >= start &&
+        order.payment.refundedAt <= end;
+      const gmv = completedInPeriod ? amount : 0;
+      const cashIn = paidInPeriod ? paymentAmount : 0;
+      const refund = refundedInPeriod ? paymentAmount : 0;
+      return {
+        id: order.id,
+        orderCode: order.orderCode,
+        client: order.client,
+        orderStatus: order.status,
+        orderCreatedAt: order.createdAt,
+        orderAmount: amount,
+        paymentMethod: order.payment?.method ?? null,
+        paymentStatus: order.payment?.status ?? null,
+        paidAt: order.payment?.paidAt ?? null,
+        refundedAt: order.payment?.refundedAt ?? null,
+        gmv,
+        cashIn,
+        refund,
+        difference: cashIn - refund - gmv,
+      };
+    });
+    return {
+      dateRange: { startDate: startDay, endDate: endDay },
+      kind,
+      summary: {
+        totalGmv,
+        grossCashIn,
+        refundedAmount,
+        netCashIn: grossCashIn - refundedAmount,
+        difference: grossCashIn - refundedAmount - totalGmv,
+      },
+      list: rows,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / itemPerPage)),
+      page,
+    };
+  }
 
   private getFinanceConfigFile(): string {
     return path.join(process.cwd(), 'data', 'finance-config.json');
@@ -1097,8 +1216,12 @@ export class ReportsService {
         label: grp.label,
         clientCount: grp.count,
         percentage: grp.percentage,
-        topFavoriteVendor: topFav ? { name: topFav[0], count: topFav[1] } : null,
-        topPurchasedVendor: topBuy ? { name: topBuy[0], count: topBuy[1] } : null,
+        topFavoriteVendor: topFav
+          ? { name: topFav[0], count: topFav[1] }
+          : null,
+        topPurchasedVendor: topBuy
+          ? { name: topBuy[0], count: topBuy[1] }
+          : null,
         totalSpent: Math.round(totalSpentInGroup),
       };
     });

@@ -93,6 +93,7 @@ export const vouchersApi = {
 
 export const reviewsApi = {
   getReviews: (params = {}) => axiosClient.get('/reviews/admin/all', { params }),
+  getReview: (id) => axiosClient.get(`/reviews/admin/${id}`),
   replyReview: (id, adminReply) => axiosClient.patch(`/reviews/admin/${id}/reply`, { adminReply }),
   deleteReview: (id) => axiosClient.delete(`/reviews/admin/${id}`),
 };
@@ -101,6 +102,7 @@ export const reviewsApi = {
 
 export const reportsApi = {
   getAnalytics: (params = {}) => axiosClient.get('/admin/reports/analytics', { params }),
+  getReconciliation: (params = {}) => axiosClient.get('/admin/reports/reconciliation', { params }),
   getCustomerReport: (params = {}) => axiosClient.get('/admin/reports/customers', { params }),
   getCustomerAnalytics: (params = {}) => axiosClient.get('/admin/reports/customer-analytics', { params }),
   getFinanceConfig: () => axiosClient.get('/admin/reports/finance-config'),
@@ -128,6 +130,8 @@ export const surveysApi = {
       ...(recipientIds?.length ? { recipientIds } : {}),
     }),
   getResults: (id, params = {}) => axiosClient.get(`/surveys/${id}/results`, { params }),
+  getResponse: (id, responseId) => axiosClient.get(`/surveys/${id}/responses/${responseId}`),
+  extendSchedule: (id, endDate) => axiosClient.patch(`/surveys/${id}/schedule`, { endDate }),
   deleteSurvey: (id) => axiosClient.delete(`/surveys/${id}`),
 };
 

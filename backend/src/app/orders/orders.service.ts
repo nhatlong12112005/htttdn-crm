@@ -156,7 +156,9 @@ export class OrdersService {
         'Không tìm thấy sản phẩm hợp lệ để đặt hàng',
       );
 
-    const requestedCodes = (dto.voucherCodes || []).map((code) => code.trim().toUpperCase());
+    const requestedCodes = (dto.voucherCodes || []).map((code) =>
+      code.trim().toUpperCase(),
+    );
 
     if (new Set(requestedCodes).size !== requestedCodes.length) {
       throw new BadRequestException('Voucher bị trùng lặp');
@@ -214,8 +216,7 @@ export class OrdersService {
 
   async checkout(clientId: string, dto: CheckoutDto) {
     let result:
-      | { orders: any[]; order: any; surveyNotifications: any[] }
-      | undefined;
+      { orders: any[]; order: any; surveyNotifications: any[] } | undefined;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         result = await this.prisma.extendedTransaction(
@@ -598,6 +599,10 @@ export class OrdersService {
               current.payment?.status === PaymentStatus.paid
                 ? PaymentStatus.refunded
                 : PaymentStatus.cancelled,
+            refundedAt:
+              current.payment?.status === PaymentStatus.paid
+                ? new Date()
+                : undefined,
           },
         });
       }

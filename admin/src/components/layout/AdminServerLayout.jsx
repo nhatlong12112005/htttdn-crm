@@ -7,6 +7,7 @@ import {
   UserCheck,
   KeyRound,
   LineChart,
+  ReceiptText,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -21,6 +22,11 @@ const ADMIN_NAV_ITEMS = [
     name: 'Dashboard Doanh thu',
     path: '/system/revenue',
     icon: LineChart,
+  },
+  {
+    name: 'Đối soát thanh toán',
+    path: '/system/reconciliation',
+    icon: ReceiptText,
   },
 ];
 

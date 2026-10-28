@@ -16,9 +16,7 @@ import {
   ShoppingBag,
   Package,
   RefreshCw,
-  Percent,
   Calendar,
-  Wallet,
 } from 'lucide-react';
 import { reportsApi } from '../../api';
 import { Button, Badge } from '../../components/ui';
@@ -96,7 +94,7 @@ export default function Analytics() {
             Dashboard Doanh thu
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-            Thống kê doanh thu, dòng tiền thực thu và đơn hàng theo chu kỳ
+            Thống kê doanh thu và đơn hàng theo chu kỳ. Chi tiết thanh toán nằm trong mục Đối soát.
           </p>
         </div>
 
@@ -217,8 +215,8 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* 4 Clean KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Overview cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
           {
             title: 'Tổng Doanh Thu (GMV)',
@@ -227,22 +225,6 @@ export default function Analytics() {
             icon: DollarSign,
             color: 'text-emerald-600',
             bg: 'bg-emerald-100 dark:bg-emerald-950/60',
-          },
-          {
-            title: 'Thực Thu (Cash-in)',
-            value: formatVND(summary.totalCashIn),
-            sub: 'Đơn đã thanh toán & giao thành công',
-            icon: Wallet,
-            color: 'text-indigo-600',
-            bg: 'bg-indigo-100 dark:bg-indigo-950/60',
-          },
-          {
-            title: 'Doanh Thu Thuần (Sau thuế 8%)',
-            value: formatVND(summary.vendorNetRevenue),
-            sub: `Thuế GTGT: ${formatVND(summary.orderTaxRevenue)}`,
-            icon: Percent,
-            color: 'text-rose-600',
-            bg: 'bg-rose-100 dark:bg-rose-950/60',
           },
           {
             title: 'Tổng Đơn Hàng',
@@ -277,14 +259,14 @@ export default function Analytics() {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue & Cash-in Trends Chart */}
+        {/* Revenue trend chart */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
-              Biểu đồ Doanh thu &amp; Thực thu
+              Biểu đồ doanh thu
             </h3>
             <p className="text-xs text-slate-400">
-              So sánh Tổng doanh thu (GMV) và Thực thu (Cash-in) theo thời gian
+              Giá trị các đơn đã hoàn tất theo thời gian
             </p>
           </div>
 
@@ -295,10 +277,6 @@ export default function Analytics() {
                   <linearGradient id="colorGmv" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#e11d48" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#e11d48" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorCashIn" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -338,15 +316,6 @@ export default function Analytics() {
                   stroke="#e11d48"
                   fillOpacity={1}
                   fill="url(#colorGmv)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cashIn"
-                  name="Thực Thu (Cash-in)"
-                  stroke="#6366f1"
-                  fillOpacity={1}
-                  fill="url(#colorCashIn)"
                   strokeWidth={2}
                 />
               </AreaChart>

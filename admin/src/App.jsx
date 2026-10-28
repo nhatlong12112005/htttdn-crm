@@ -14,6 +14,7 @@ import OrderManagement from './pages/orders/OrderManagement';
 import VoucherManagement from './pages/vouchers/VoucherManagement';
 import ReviewManagement from './pages/reviews/ReviewManagement';
 import Analytics from './pages/analytics/Analytics';
+import Reconciliation from './pages/analytics/Reconciliation';
 import CustomerAnalytics from './pages/analytics/CustomerAnalytics';
 import SurveyManagement from './pages/surveys/SurveyManagement';
 import Login from './pages/auth/Login';
@@ -41,6 +42,7 @@ function App() {
                 <Route path="/system" element={<Navigate to="/system/accounts" replace />} />
                 <Route path="/system/accounts" element={<AccountManagement />} />
                 <Route path="/system/revenue" element={<Analytics />} />
+                <Route path="/system/reconciliation" element={<Reconciliation />} />
                 <Route path="/system/dashboard" element={<Navigate to="/system/revenue" replace />} />
               </Route>
             </Route>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Clock, ShieldCheck, ClipboardList } from 'lucide-react';
+import { Bell, Check, ShieldCheck, ClipboardList } from 'lucide-react';
 import { notificationsApi } from '../../api';
+import { useNavigate } from 'react-router-dom';
 
 export default function NotificationDropdown() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -61,23 +63,33 @@ export default function NotificationDropdown() {
     }
   };
 
-  const handleMarkAsRead = async (e, id) => {
-    e.stopPropagation();
-    try {
-      await notificationsApi.markAsRead(id);
-      setNotifications(prev =>
-        prev.map(item => (item.id === id ? { ...item, isRead: true } : item))
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (err) {}
-  };
-
   const handleMarkAllAsRead = async () => {
     try {
       await notificationsApi.markAllAsRead();
       setNotifications(prev => prev.map(item => ({ ...item, isRead: true })));
       setUnreadCount(0);
     } catch (err) {}
+  };
+
+  const handleOpenNotification = async (notif) => {
+    if (!notif.isRead) {
+      try {
+        await notificationsApi.markAsRead(notif.id);
+        setNotifications((items) => items.map((item) => item.id === notif.id ? { ...item, isRead: true } : item));
+        setUnreadCount((count) => Math.max(0, count - 1));
+      } catch (error) {
+        console.error('Không thể đánh dấu thông báo đã đọc:', error);
+      }
+    }
+    const data = notif.data || {};
+    if (data.kind === 'review' && data.reviewId) {
+      navigate(`/reviews?reviewId=${encodeURIComponent(data.reviewId)}`);
+    } else if (data.kind === 'survey_response' && data.surveyId && data.responseId) {
+      navigate(`/surveys?surveyId=${encodeURIComponent(data.surveyId)}&responseId=${encodeURIComponent(data.responseId)}`);
+    } else if (notif.surveyId) {
+      navigate(`/surveys?surveyId=${encodeURIComponent(notif.surveyId)}`);
+    }
+    setIsOpen(false);
   };
 
   return (
@@ -136,6 +148,8 @@ export default function NotificationDropdown() {
                 return (
                   <div
                     key={notif.id}
+                    data-notification-id={notif.id}
+                    onClick={() => handleOpenNotification(notif)}
                     className={`p-3.5 sm:p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 cursor-pointer transition-colors relative flex items-start gap-3 ${
                       !notif.isRead ? 'bg-blue-50/20 dark:bg-blue-950/20' : ''
                     }`}

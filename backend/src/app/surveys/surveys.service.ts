@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -61,6 +62,7 @@ type NotificationPayload = {
 
 @Injectable()
 export class SurveysService {
+  private readonly logger = new Logger(SurveysService.name);
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly realtime?: RealtimeService,
@@ -77,11 +79,22 @@ export class SurveysService {
     if (user.role !== 'admin') {
       throw new ForbiddenException('Chỉ quản trị viên mới được tạo khảo sát');
     }
-    const { questions, audienceType, recipientIds, triggerType, scope, status, ...fields } =
-      dto;
+    const {
+      questions,
+      audienceType,
+      recipientIds,
+      triggerType,
+      scope,
+      status,
+      ...fields
+    } = dto;
     const resolvedAudience = audienceType ?? SurveyAudienceType.all_users;
     const resolvedTrigger = triggerType ?? SurveyTriggerType.manual;
-    this.assertRecipientSelection(resolvedAudience, resolvedTrigger, recipientIds ?? []);
+    this.assertRecipientSelection(
+      resolvedAudience,
+      resolvedTrigger,
+      recipientIds ?? [],
+    );
     const startDate = this.toDate(fields.startDate);
     const endDate = this.toDate(fields.endDate);
     this.assertDateRange(startDate, endDate);
@@ -93,7 +106,10 @@ export class SurveysService {
         startDate,
         endDate,
         audienceType: resolvedAudience,
-        recipientIds: resolvedAudience === SurveyAudienceType.selected_users ? recipientIds : [],
+        recipientIds:
+          resolvedAudience === SurveyAudienceType.selected_users
+            ? recipientIds
+            : [],
         triggerType: resolvedTrigger,
         scope: scope ?? SurveyScope.platform,
         status: status ?? SurveyStatus.draft,
@@ -137,9 +153,11 @@ export class SurveysService {
     }
     const audienceType = dto.audienceType ?? current.audienceType;
     const triggerType = dto.triggerType ?? current.triggerType;
-    const recipientIds = dto.recipientIds ?? (
-      audienceType === SurveyAudienceType.selected_users ? current.recipientIds : []
-    );
+    const recipientIds =
+      dto.recipientIds ??
+      (audienceType === SurveyAudienceType.selected_users
+        ? current.recipientIds
+        : []);
     this.assertRecipientSelection(audienceType, triggerType, recipientIds);
     const startDate =
       dto.startDate === undefined
@@ -149,7 +167,8 @@ export class SurveysService {
       dto.endDate === undefined ? current.endDate : this.toDate(dto.endDate);
     this.assertDateRange(startDate, endDate);
     const data = this.surveyUpdateData(dto);
-    if (audienceType !== SurveyAudienceType.selected_users) data.recipientIds = [];
+    if (audienceType !== SurveyAudienceType.selected_users)
+      data.recipientIds = [];
 
     return this.prisma.extendedTransaction(async (tx) => {
       if (dto.questions) {
@@ -180,10 +199,15 @@ export class SurveysService {
     if (status === SurveyStatus.active) {
       this.assertPublishable(survey);
       const selectedIds = recipientIds ?? survey.recipientIds;
-      this.assertRecipientSelection(survey.audienceType, survey.triggerType, selectedIds);
-      const manualRecipientIds = survey.audienceType === SurveyAudienceType.selected_users
-        ? selectedIds
-        : undefined;
+      this.assertRecipientSelection(
+        survey.audienceType,
+        survey.triggerType,
+        selectedIds,
+      );
+      const manualRecipientIds =
+        survey.audienceType === SurveyAudienceType.selected_users
+          ? selectedIds
+          : undefined;
       const result = await this.prisma.extendedTransaction(async (tx) => {
         const activeSurvey = await tx.survey.update({
           where: { id },
@@ -195,13 +219,15 @@ export class SurveysService {
             admin: { select: { id: true, fullName: true } },
           },
         });
-        const notifications = activeSurvey.triggerType === SurveyTriggerType.manual
-          ? await this.createResponses(
-              tx,
-              activeSurvey,
-              await this.resolveManualRecipientIds(tx, manualRecipientIds),
-            )
-          : [];
+        const notifications =
+          survey.status === SurveyStatus.draft &&
+          activeSurvey.triggerType === SurveyTriggerType.manual
+            ? await this.createResponses(
+                tx,
+                activeSurvey,
+                await this.resolveManualRecipientIds(tx, manualRecipientIds),
+              )
+            : [];
         return { activeSurvey, notifications };
       });
       this.emitNotifications(result.notifications);
@@ -220,6 +246,47 @@ export class SurveysService {
       where: { id },
       data: { status },
       include: this.managementInclude(),
+    });
+  }
+
+  async extendSchedule(id: string, endDateInput: string, user: UserInfo) {
+    const survey = await this.getSurveyForManagement(id);
+    this.assertOwnerOrAdmin(user);
+    if (survey.status === SurveyStatus.draft) {
+      throw new BadRequestException('Hãy sửa thời hạn trong bản nháp');
+    }
+    if (!survey.endDate) {
+      throw new BadRequestException('Khảo sát không có hạn kết thúc để gia hạn');
+    }
+    const endDate = new Date(endDateInput);
+    this.assertDateRange(survey.startDate, endDate);
+    if (
+      endDate <= new Date() ||
+      endDate <= survey.endDate
+    ) {
+      throw new BadRequestException(
+        'Ngày gia hạn phải sau hạn cũ và trong tương lai',
+      );
+    }
+    return this.prisma.extendedTransaction(async (tx) => {
+      await tx.survey.update({ where: { id }, data: { endDate } });
+      await tx.surveyResponse.updateMany({
+        where: {
+          surveyId: id,
+          status: {
+            in: [SurveyResponseStatus.pending, SurveyResponseStatus.expired],
+          },
+        },
+        data: { expiresAt: endDate, status: SurveyResponseStatus.pending },
+      });
+      await tx.notification.updateMany({
+        where: { surveyId: id, type: NotificationType.survey_invitation },
+        data: { expiresAt: endDate },
+      });
+      return tx.survey.findUniqueOrThrow({
+        where: { id },
+        include: this.managementInclude(),
+      });
     });
   }
 
@@ -297,7 +364,7 @@ export class SurveysService {
   ) {
     const { userId } = this.resolveActor(actor);
     try {
-      return await this.prisma.extendedTransaction(async (tx) => {
+      const submitted = await this.prisma.extendedTransaction(async (tx) => {
         const response = await tx.surveyResponse.findFirst({
           where: { id: responseId, clientId: userId },
           include: {
@@ -342,6 +409,10 @@ export class SurveysService {
         });
         return updated;
       });
+      await this.notifyManagersOfSubmission(responseId).catch((error) =>
+        this.logger.warn(`Không thể tạo thông báo phản hồi khảo sát: ${error}`),
+      );
+      return submitted;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -351,6 +422,37 @@ export class SurveysService {
       }
       throw error;
     }
+  }
+
+  private async notifyManagersOfSubmission(responseId: string) {
+    const response =
+      await this.prisma.extended.surveyResponse.findUniqueOrThrow({
+        where: { id: responseId },
+        select: { surveyId: true, survey: { select: { title: true } } },
+      });
+    const managers = await this.prisma.extended.admin.findMany({
+      where: { roleCode: 'CRM_MANAGER', status: 'active', deletedAt: null },
+      select: { id: true },
+    });
+    if (!managers.length) return;
+    await this.prisma.extended.notification.createMany({
+      data: managers.map((manager) => ({
+        adminId: manager.id,
+        surveyId: response.surveyId,
+        type: NotificationType.system,
+        title: 'Có câu trả lời khảo sát mới',
+        content: response.survey.title,
+        data: {
+          kind: 'survey_response',
+          surveyId: response.surveyId,
+          responseId,
+        },
+      })),
+    });
+    this.realtime?.emitToAdmins('notification:created', {
+      kind: 'survey_response',
+      responseId,
+    });
   }
 
   async skipResponse(responseId: string, actor: UserInfo | string) {
@@ -477,12 +579,13 @@ export class SurveysService {
     const survey = await this.getSurveyForManagement(id);
     this.assertOwnerOrAdmin(user);
 
-    const interactionGroups =
-      await this.prisma.extended.surveyResponse.groupBy({
+    const interactionGroups = await this.prisma.extended.surveyResponse.groupBy(
+      {
         by: ['status'],
         where: { surveyId: id },
         _count: { _all: true },
-      });
+      },
+    );
     const interactionCounts = Object.fromEntries(
       Object.values(SurveyResponseStatus).map((status) => [
         status,
@@ -492,18 +595,24 @@ export class SurveysService {
     ) as Record<SurveyResponseStatus, number>;
     const responseCount = interactionCounts[SurveyResponseStatus.submitted];
     const invitedCount = survey._count.responses;
-    const pendingCount = interactionCounts[SurveyResponseStatus.pending] ?? 0;
-    const openedCount = this.prisma.extended.surveyResponse.count
-      ? await this.prisma.extended.surveyResponse.count({
-          where: {
-            surveyId: id,
-            OR: [
-              { openedAt: { not: null } },
-              { status: SurveyResponseStatus.submitted },
-            ],
-          },
-        })
-      : responseCount;
+    const [unopenedCount, openedPendingCount] = await Promise.all([
+      this.prisma.extended.surveyResponse.count({
+        where: {
+          surveyId: id,
+          status: SurveyResponseStatus.pending,
+          openedAt: null,
+        },
+      }),
+      this.prisma.extended.surveyResponse.count({
+        where: {
+          surveyId: id,
+          status: SurveyResponseStatus.pending,
+          openedAt: { not: null },
+        },
+      }),
+    ]);
+    const pendingCount = unopenedCount + openedPendingCount;
+    const openedCount = openedPendingCount + responseCount;
     const completionRate = invitedCount > 0 ? responseCount / invitedCount : 0;
 
     const questions = await Promise.all(
@@ -618,6 +727,10 @@ export class SurveysService {
         openedCount,
         responseCount,
         pendingCount,
+        unopenedCount,
+        openedPendingCount,
+        skippedCount: interactionCounts[SurveyResponseStatus.skipped],
+        expiredCount: interactionCounts[SurveyResponseStatus.expired],
         completionRate,
       },
       responseCount,
@@ -625,6 +738,28 @@ export class SurveysService {
       responseRate: completionRate * 100,
       questions,
     };
+  }
+
+  async getManagementResponse(
+    surveyId: string,
+    responseId: string,
+    user: UserInfo,
+  ) {
+    await this.getSurveyForManagement(surveyId);
+    this.assertOwnerOrAdmin(user);
+    const response = await this.prisma.extended.surveyResponse.findFirst({
+      where: { id: responseId, surveyId },
+      include: {
+        client: { select: { id: true, fullName: true, email: true } },
+        answers: {
+          include: { question: true, option: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!response)
+      throw new NotFoundException('Phản hồi khảo sát không tồn tại');
+    return response;
   }
 
   async deliverForOrder(
@@ -727,7 +862,12 @@ export class SurveysService {
     }
 
     return tx.notification.findMany({
-      where: { surveyId: survey.id },
+      where: {
+        surveyId: survey.id,
+        surveyResponseId: {
+          in: withoutNotification.map((response) => response.id),
+        },
+      },
       select: {
         id: true,
         clientId: true,
@@ -753,7 +893,9 @@ export class SurveysService {
       select: { id: true },
     });
     if (recipientIds && clients.length !== new Set(recipientIds).size) {
-      throw new BadRequestException('Có khách hàng được chọn không còn hoạt động hoặc không tồn tại');
+      throw new BadRequestException(
+        'Có khách hàng được chọn không còn hoạt động hoặc không tồn tại',
+      );
     }
     return clients.map((c) => ({ clientId: c.id, orderId: null }));
   }
@@ -774,15 +916,24 @@ export class SurveysService {
     recipientIds: string[],
   ) {
     this.assertDeliveryRules(audienceType);
-    if (audienceType !== SurveyAudienceType.selected_users && recipientIds.length) {
-      throw new BadRequestException('Danh sách khách hàng chỉ dùng cho khảo sát chọn khách hàng cụ thể');
+    if (
+      audienceType !== SurveyAudienceType.selected_users &&
+      recipientIds.length
+    ) {
+      throw new BadRequestException(
+        'Danh sách khách hàng chỉ dùng cho khảo sát chọn khách hàng cụ thể',
+      );
     }
     if (audienceType === SurveyAudienceType.selected_users) {
       if (triggerType !== SurveyTriggerType.manual) {
-        throw new BadRequestException('Khảo sát chọn khách hàng chỉ hỗ trợ gửi thủ công');
+        throw new BadRequestException(
+          'Khảo sát chọn khách hàng chỉ hỗ trợ gửi thủ công',
+        );
       }
       if (!recipientIds.length) {
-        throw new BadRequestException('Vui lòng chọn ít nhất một khách hàng nhận khảo sát');
+        throw new BadRequestException(
+          'Vui lòng chọn ít nhất một khách hàng nhận khảo sát',
+        );
       }
     }
   }
@@ -833,6 +984,12 @@ export class SurveysService {
     if (response.survey.startDate && response.survey.startDate > now) {
       throw new BadRequestException('Khảo sát chưa đến ngày bắt đầu');
     }
+    if (
+      (response.survey.endDate && response.survey.endDate < now) ||
+      (response.expiresAt && response.expiresAt < now)
+    ) {
+      throw new BadRequestException('Khảo sát đã hết hạn');
+    }
   }
 
   private async listManagement(
@@ -865,7 +1022,12 @@ export class SurveysService {
         take: itemPerPage,
         include: {
           admin: { select: { id: true, fullName: true } },
-          _count: { select: { questions: true, responses: true } },
+          _count: {
+            select: {
+              questions: true,
+              responses: { where: { status: SurveyResponseStatus.submitted } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),

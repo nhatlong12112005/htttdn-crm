@@ -204,5 +204,28 @@ describe('OrdersService', () => {
       'order:updated',
       expect.objectContaining({ status: OrderStatus.cancelled }),
     );
+
+    prisma.order.findUnique.mockResolvedValue({
+      ...current,
+      payment: { status: PaymentStatus.paid, method: PaymentMethod.cod },
+    });
+    await service.updateStatus(
+      orderId,
+      { status: OrderStatus.cancelled },
+      {
+        userID: clientId,
+        userEmail: 'customer@example.com',
+        fullName: 'Customer',
+        phone: null,
+        avatar: null,
+        gender: null,
+        address: null,
+        role: 'client',
+      },
+    );
+    expect(tx.payment.update).toHaveBeenLastCalledWith({
+      where: { orderId },
+      data: { status: PaymentStatus.refunded, refundedAt: expect.any(Date) as Date },
+    });
   });
 });

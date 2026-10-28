@@ -569,6 +569,7 @@ model Payment {
   gateway         String?       @db.VarChar(100)
   gatewayResponse Json?
   paidAt          DateTime?
+  refundedAt      DateTime?
   failedAt        DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

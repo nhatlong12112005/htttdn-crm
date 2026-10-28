@@ -221,8 +221,9 @@ export default function SurveyModal({ isOpen, onClose, surveyResponseId, onSubmi
 
   const isSubmittedAlready = detail?.status === 'submitted' && !justSubmitted;
   const isSkipped = detail?.status === 'skipped';
-  const isExpired = (detail?.expiresAt && new Date(detail.expiresAt) < new Date()) || detail?.survey?.status === 'closed';
-  const canEdit = !!detail && !isSubmittedAlready && !isSkipped && !isExpired && !justSubmitted;
+  const isExpired = (detail?.expiresAt && new Date(detail.expiresAt) < new Date()) || (detail?.survey?.endDate && new Date(detail.survey.endDate) < new Date()) || detail?.survey?.status === 'closed';
+  const isNotStarted = detail?.survey?.startDate && new Date(detail.survey.startDate) > new Date();
+  const canEdit = !!detail && !isSubmittedAlready && !isSkipped && !isExpired && !isNotStarted && !justSubmitted;
 
   const questions = detail?.survey?.questions || [];
   const answeredCount = questions.filter(isQuestionAnswered).length;
@@ -416,6 +417,12 @@ export default function SurveyModal({ isOpen, onClose, surveyResponseId, onSubmi
                       Thời hạn tham gia khảo sát này đã kết thúc. Bạn có thể xem lại câu hỏi nhưng không thể gửi phản hồi mới.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {isNotStarted && !isSubmittedAlready && !isExpired && (
+                <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 text-sm">
+                  Khảo sát bắt đầu từ {new Date(detail.survey.startDate).toLocaleDateString('vi-VN', { timeZone: 'Asia/Bangkok' })}. Bạn có thể trả lời khi đến ngày bắt đầu.
                 </div>
               )}
 

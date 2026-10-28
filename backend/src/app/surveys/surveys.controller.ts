@@ -21,6 +21,7 @@ import {
 import { SubmitSurveyDto } from './dto/submit-survey.dto';
 import { GetSurveyInboxQueryDto } from './dto/survey-campaign.dto';
 import { SurveyStatusDto } from './dto/survey-status.dto';
+import { SurveyScheduleDto } from './dto/survey-schedule.dto';
 import { UpdateSurveyDto } from './dto/update-survey.dto';
 import { SurveysService } from './surveys.service';
 
@@ -123,6 +124,26 @@ export class SurveysController {
     return this.surveysService.getResults(id, user, query);
   }
 
+  @Patch(':id/schedule')
+  @Roles('admin')
+  updateSchedule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SurveyScheduleDto,
+    @User() user: UserInfo,
+  ) {
+    return this.surveysService.extendSchedule(id, dto.endDate, user);
+  }
+
+  @Get(':id/responses/:responseId')
+  @Roles('admin')
+  getManagementResponse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('responseId', ParseUUIDPipe) responseId: string,
+    @User() user: UserInfo,
+  ) {
+    return this.surveysService.getManagementResponse(id, responseId, user);
+  }
+
   @Get(':id/orders/:orderId/my-response')
   @Roles('client')
   getMyResponse(
@@ -161,7 +182,12 @@ export class SurveysController {
     @Body() dto: SurveyStatusDto,
     @User() user: UserInfo,
   ) {
-    return this.surveysService.changeStatus(id, dto.status, user, dto.recipientIds);
+    return this.surveysService.changeStatus(
+      id,
+      dto.status,
+      user,
+      dto.recipientIds,
+    );
   }
 
   @Patch(':id')

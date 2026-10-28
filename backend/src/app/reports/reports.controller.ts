@@ -1,11 +1,14 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
-
 import { User } from 'src/common/decorators/user.decorator';
 import type { UserInfo } from 'src/common/decorators/user.decorator';
-import { AdminRoles, Roles } from 'src/common/guards/access-control/roles.decorator';
+import {
+  AdminRoles,
+  Roles,
+} from 'src/common/guards/access-control/roles.decorator';
 import { CustomerReportQueryDto } from './dto/customer-report.dto';
 import { AnalyticsReportQueryDto } from './dto/analytics-report.dto';
+import { ReconciliationQueryDto } from './dto/reconciliation-query.dto';
 import { UpdateFinanceConfigDto } from './dto/finance-config.dto';
 import { ReportsService } from './reports.service';
 
@@ -36,10 +39,15 @@ export class ReportsController {
   @Get('admin/reports/analytics')
   @Roles('admin')
   @AdminRoles('SUPER_ADMIN')
-  adminAnalytics(
-    @Query() query: AnalyticsReportQueryDto,
-  ) {
+  adminAnalytics(@Query() query: AnalyticsReportQueryDto) {
     return this.reportsService.analyticsOverview(query);
+  }
+
+  @Get('admin/reports/reconciliation')
+  @Roles('admin')
+  @AdminRoles('SUPER_ADMIN')
+  reconciliation(@Query() query: ReconciliationQueryDto) {
+    return this.reportsService.reconciliation(query);
   }
 
   @Get('admin/reports/customers')
@@ -54,7 +62,13 @@ export class ReportsController {
   @Get('admin/reports/customer-analytics')
   @Roles('admin', 'employee')
   customerAnalytics(
-    @Query() query: { page?: number; itemPerPage?: number; search?: string; ageGroup?: string },
+    @Query()
+    query: {
+      page?: number;
+      itemPerPage?: number;
+      search?: string;
+      ageGroup?: string;
+    },
   ) {
     return this.reportsService.customerDemographicsAndPreferences(query);
   }

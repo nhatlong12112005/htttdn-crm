@@ -2,9 +2,12 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { OrderStatus, ProductStatus } from '@prisma/client';
+import { NotificationType, OrderStatus, ProductStatus } from '@prisma/client';
+import { RealtimeService } from 'src/app/realtime/realtime.service';
 
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import {
@@ -17,7 +20,11 @@ import { GetReviewsPaginationDto } from './dto/get-review.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ReviewsService.name);
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly realtime?: RealtimeService,
+  ) {}
 
   async listAll(query: GetReviewsPaginationDto) {
     const { page, itemPerPage, skip } = normalizePagination(query);
@@ -35,6 +42,18 @@ export class ReviewsService {
     });
 
     return formatPaginatedList(list, totalItems, { page, itemPerPage });
+  }
+
+  async getAdminReview(id: string) {
+    const review = await this.prisma.extended.review.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        client: { select: { id: true, fullName: true, email: true } },
+        product: { select: { id: true, name: true, slug: true } },
+      },
+    });
+    if (!review) throw new NotFoundException('Phản hồi không tồn tại');
+    return review;
   }
 
   listByProduct(productId: string) {
@@ -79,7 +98,7 @@ export class ReviewsService {
         );
       if (detail.review)
         throw new ConflictException('Sản phẩm trong đơn này đã được đánh giá');
-      return this.prisma.extended.review.create({
+      const review = await this.prisma.extended.review.create({
         data: {
           clientId,
           orderDetailId: detail.id,
@@ -91,6 +110,10 @@ export class ReviewsService {
           client: { select: { id: true, fullName: true, avatarUrl: true } },
         },
       });
+      await this.notifyManagers(review.id).catch((error) =>
+        this.logger.warn(`Không thể tạo thông báo phản hồi sản phẩm: ${error}`),
+      );
+      return review;
     }
 
     const product = await this.prisma.extended.product.findFirst({
@@ -101,7 +124,7 @@ export class ReviewsService {
       throw new NotFoundException('Sản phẩm không tồn tại');
     }
 
-    return this.prisma.extended.review.create({
+    const review = await this.prisma.extended.review.create({
       data: {
         clientId,
         productId: product.id,
@@ -112,6 +135,31 @@ export class ReviewsService {
       include: {
         client: { select: { id: true, fullName: true, avatarUrl: true } },
       },
+    });
+    await this.notifyManagers(review.id).catch((error) =>
+      this.logger.warn(`Không thể tạo thông báo phản hồi sản phẩm: ${error}`),
+    );
+    return review;
+  }
+
+  private async notifyManagers(reviewId: string) {
+    const managers = await this.prisma.extended.admin.findMany({
+      where: { roleCode: 'CRM_MANAGER', status: 'active', deletedAt: null },
+      select: { id: true },
+    });
+    if (!managers.length) return;
+    await this.prisma.extended.notification.createMany({
+      data: managers.map((manager) => ({
+        adminId: manager.id,
+        type: NotificationType.system,
+        title: 'Có phản hồi sản phẩm mới',
+        content: 'Mở phản hồi để xem và trả lời khách hàng.',
+        data: { kind: 'review', reviewId },
+      })),
+    });
+    this.realtime?.emitToAdmins('notification:created', {
+      kind: 'review',
+      reviewId,
     });
   }
 
