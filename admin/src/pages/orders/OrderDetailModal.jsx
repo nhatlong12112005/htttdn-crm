@@ -6,6 +6,7 @@ import {
   Package, 
   Clock, 
   ShieldAlert,
+  RotateCcw,
   User,
   MapPin,
   FileText,
@@ -26,6 +27,7 @@ export default function OrderDetailModal({ isOpen, onClose, order, onStatusChang
     switch (status) {
       case 'completed': return 'success';
       case 'pending': return 'warning';
+      case 'returned': return 'warning';
       case 'confirmed':
       case 'processing':
       case 'shipping': return 'info';
@@ -91,11 +93,25 @@ export default function OrderDetailModal({ isOpen, onClose, order, onStatusChang
                   Xác nhận giao thành công (Completed)
                 </Button>
               )}
-              {order.status !== 'completed' && order.status !== 'cancelled' && (
+              {order.status === 'completed' && (
+                <Button
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    const reason = prompt('Nhập lý do trả hàng & hoàn tiền (trong thời hạn 7 ngày từ khi giao thành công):', 'Khách hàng yêu cầu trả hàng & hoàn tiền');
+                    if (reason !== null && reason.trim()) {
+                      onStatusChange(order.id, 'returned', reason.trim());
+                    }
+                  }}
+                >
+                  <RotateCcw className="w-4 h-4 mr-1.5 inline" />
+                  Xử lý Trả hàng & Hoàn tiền (Returned)
+                </Button>
+              )}
+              {order.status !== 'completed' && order.status !== 'cancelled' && order.status !== 'returned' && (
                 <Button 
                   variant="danger" 
                   onClick={() => {
-                    const reason = prompt('Nhập lý do hủy đơn hàng (sẽ tự động hoàn kho, hoàn voucher):', 'Khách hàng hoặc Quản lý hủy đơn');
+                    const reason = prompt('Nhập lý do hủy đơn hàng (sẽ tự động hoàn kho, hoàn voucher và hoàn tiền nếu đã thanh toán):', 'Khách hàng hoặc Quản lý hủy đơn');
                     if (reason !== null && reason.trim()) {
                       onStatusChange(order.id, 'cancelled', reason.trim());
                     }
@@ -136,7 +152,12 @@ export default function OrderDetailModal({ isOpen, onClose, order, onStatusChang
                   {getPaymentStatusBadge(order.payment?.status)}
                   {order.payment?.paidAt && (
                     <span className="block text-[11px] text-slate-400 text-right mt-0.5">
-                      {formatDate(order.payment.paidAt)}
+                      Đã TT: {formatDate(order.payment.paidAt)}
+                    </span>
+                  )}
+                  {order.payment?.refundedAt && (
+                    <span className="block text-[11px] text-amber-600 dark:text-amber-400 text-right mt-0.5 font-medium">
+                      Hoàn tiền: {formatDate(order.payment.refundedAt)}
                     </span>
                   )}
                 </div>

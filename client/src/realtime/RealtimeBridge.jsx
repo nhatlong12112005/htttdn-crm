@@ -1,13 +1,44 @@
-import { useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useQueryClient } from '@tanstack/react-query';
 import { io } from 'socket.io-client';
+import { logout } from '../features/auth/authSlice';
+import { authService } from '../services/authService';
 
 export default function RealtimeBridge() {
   const userId = useSelector((state) => state.auth.user?.id);
+  const dispatch = useDispatch();
   const queryClient = useQueryClient();
+  const lockHandledRef = useRef(false);
 
   useEffect(() => {
+    lockHandledRef.current = false;
+  }, [userId]);
+
+  useEffect(() => {
+    const handleAccountLocked = async (payload) => {
+      if (lockHandledRef.current) return;
+      lockHandledRef.current = true;
+      const message =
+        payload?.message ||
+        payload?.detail?.message ||
+        'Tài khoản của bạn đã bị khóa bởi Quản trị viên.';
+      try {
+        await authService.logout();
+      } catch {
+        // Ignore sign-out network error
+      }
+      dispatch(logout());
+      queryClient.clear();
+      alert(message);
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    };
+
+    const onWindowLocked = (event) => handleAccountLocked(event?.detail);
+    window.addEventListener('miva:account-locked', onWindowLocked);
+
     const socket = io('/realtime', { auth: { role: userId ? 'client' : 'guest' }, withCredentials: true });
     const refreshOrders = (event) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -38,6 +69,7 @@ export default function RealtimeBridge() {
         window.dispatchEvent(new Event('miva:notification'));
       }
     });
+    socket.on('account:locked', handleAccountLocked);
     socket.on('order:created', refreshOrders);
     socket.on('order:updated', refreshOrders);
     socket.on('payment:updated', refreshOrders);
@@ -47,7 +79,10 @@ export default function RealtimeBridge() {
     socket.on('voucher:updated', refreshVouchers);
     socket.on('notification:created', () => window.dispatchEvent(new Event('miva:notification')));
     socket.on('notification:updated', () => window.dispatchEvent(new Event('miva:notification')));
-    return () => socket.disconnect();
-  }, [userId, queryClient]);
+    return () => {
+      window.removeEventListener('miva:account-locked', onWindowLocked);
+      socket.disconnect();
+    };
+  }, [userId, dispatch, queryClient]);
   return null;
 }

@@ -595,5 +595,37 @@ describe('CRM Module (Mục 4.1 & 4.3: Surveys, Product Feedback, Cart/Orders & 
         .expect(200);
       expect(updated.body.status).toBe(nextStatus);
     }
+
+    // 6. Client returns completed order within 7 days (completed -> returned)
+    const returned = await request(server())
+      .patch(`/api/orders/${ids.order}/status`)
+      .auth(clientToken, { type: 'bearer' })
+      .send({ status: 'returned', note: 'Trả hàng hoàn tiền trong 7 ngày' })
+      .expect(200);
+    expect(returned.body.status).toBe('returned');
+
+    // 7. Client uses Buy Now (direct items in preview and checkout without cartItemIds)
+    await request(server())
+      .post('/api/orders/preview')
+      .auth(clientToken, { type: 'bearer' })
+      .send({
+        items: [{ productVariantId: ids.variant, quantity: 1 }],
+        voucherCodes: [],
+      })
+      .expect(201);
+
+    const buyNowOrder = await request(server())
+      .post('/api/orders/checkout')
+      .auth(clientToken, { type: 'bearer' })
+      .send({
+        receiverName: 'Nguyễn Văn Khách Hàng',
+        receiverPhone: '0901234567',
+        shippingAddress: '123 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh',
+        paymentMethod: 'pay_later',
+        voucherCodes: [],
+        items: [{ productVariantId: ids.variant, quantity: 1 }],
+      })
+      .expect(201);
+    expect(buyNowOrder.body.paymentMethod).toBe('pay_later');
   });
 });

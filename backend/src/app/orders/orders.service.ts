@@ -104,13 +104,17 @@ const surveyPromptSelect = {
   },
 } satisfies Prisma.SurveyResponseSelect;
 
+const RETURN_WINDOW_DAYS = 7;
+const RETURN_WINDOW_MS = RETURN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
 const transitions: Record<OrderStatus, OrderStatus[]> = {
   pending: [OrderStatus.confirmed, OrderStatus.cancelled],
   confirmed: [OrderStatus.processing, OrderStatus.cancelled],
   processing: [OrderStatus.shipping, OrderStatus.cancelled],
   shipping: [OrderStatus.completed, OrderStatus.cancelled],
-  completed: [],
+  completed: [OrderStatus.returned],
   cancelled: [],
+  returned: [],
 };
 
 @Injectable()
@@ -127,30 +131,53 @@ export class OrdersService {
     clientId: string,
     dto: PreviewCheckoutDto,
   ) {
-    const cart = await tx.cart.findUnique({
-      where: { clientId },
-      include: {
-        items: {
-          include: {
-            productVariant: {
-              include: { productColor: { include: { product: true } } },
+    let targetItems: Array<{
+      id?: string;
+      productVariantId: string;
+      quantity: number;
+    }> = [];
+
+    if (dto.items?.length) {
+      const mergedMap = new Map<string, number>();
+      for (const item of dto.items) {
+        mergedMap.set(
+          item.productVariantId,
+          (mergedMap.get(item.productVariantId) || 0) + item.quantity,
+        );
+      }
+      targetItems = Array.from(mergedMap.entries()).map(
+        ([productVariantId, quantity]) => ({
+          productVariantId,
+          quantity,
+        }),
+      );
+    } else {
+      const cart = await tx.cart.findUnique({
+        where: { clientId },
+        include: {
+          items: {
+            include: {
+              productVariant: {
+                include: { productColor: { include: { product: true } } },
+              },
             },
           },
         },
-      },
-    });
-    if (!cart?.items.length)
-      throw new BadRequestException('Giỏ hàng đang trống');
-    let targetItems = cart.items;
-    if (dto.cartItemIds?.length) {
-      targetItems = cart.items.filter((item) =>
-        dto.cartItemIds!.includes(item.id),
-      );
-      if (new Set(dto.cartItemIds).size !== targetItems.length)
-        throw new BadRequestException(
-          'Sản phẩm trong giỏ đã thay đổi, vui lòng chọn lại',
+      });
+      if (!cart?.items.length)
+        throw new BadRequestException('Giỏ hàng đang trống');
+      targetItems = cart.items;
+      if (dto.cartItemIds?.length) {
+        targetItems = cart.items.filter((item) =>
+          dto.cartItemIds!.includes(item.id),
         );
+        if (new Set(dto.cartItemIds).size !== targetItems.length)
+          throw new BadRequestException(
+            'Sản phẩm trong giỏ đã thay đổi, vui lòng chọn lại',
+          );
+      }
     }
+
     if (!targetItems.length)
       throw new BadRequestException(
         'Không tìm thấy sản phẩm hợp lệ để đặt hàng',
@@ -303,11 +330,20 @@ export class OrdersService {
               });
             }
 
+            const isPrepaidDemo =
+              dto.paymentMethod === PaymentMethod.credit_card ||
+              dto.paymentMethod === PaymentMethod.pay_later;
             await tx.payment.create({
               data: {
                 orderId: order.id,
                 method: dto.paymentMethod,
                 amount: calculated.totalAmount,
+                ...(isPrepaidDemo
+                  ? {
+                      status: PaymentStatus.paid,
+                      paidAt: new Date(),
+                    }
+                  : {}),
               },
             });
 
@@ -354,12 +390,16 @@ export class OrdersService {
                 );
             }
 
-            const checkedOutItemIds = targetItems.map((i) => i.id);
-            await tx.cartItem.deleteMany({
-              where: {
-                id: { in: checkedOutItemIds },
-              },
-            });
+            const checkedOutItemIds = targetItems
+              .map((i) => i.id)
+              .filter((id): id is string => Boolean(id));
+            if (checkedOutItemIds.length > 0) {
+              await tx.cartItem.deleteMany({
+                where: {
+                  id: { in: checkedOutItemIds },
+                },
+              });
+            }
 
             return {
               orders: createdOrders,
@@ -433,6 +473,7 @@ export class OrdersService {
       countShipping,
       countCompleted,
       countCancelled,
+      countReturned,
     ] = await Promise.all([
       this.prisma.extended.order.count({ where: baseWhere }),
       this.prisma.extended.order.count({
@@ -453,6 +494,9 @@ export class OrdersService {
       this.prisma.extended.order.count({
         where: { AND: [baseWhere, { status: OrderStatus.cancelled }] },
       }),
+      this.prisma.extended.order.count({
+        where: { AND: [baseWhere, { status: OrderStatus.returned }] },
+      }),
     ]);
 
     const countsByStatus = {
@@ -463,6 +507,7 @@ export class OrdersService {
       shipping: countShipping,
       completed: countCompleted,
       cancelled: countCancelled,
+      returned: countReturned,
     };
 
     const whereConditions: Prisma.OrderWhereInput[] = [baseWhere];
@@ -534,12 +579,18 @@ export class OrdersService {
     const current = await this.getById(id, user);
 
     if (user.role === 'client') {
-      if (
-        dto.status !== OrderStatus.cancelled ||
-        current.status !== OrderStatus.pending
-      ) {
+      const canCancel =
+        dto.status === OrderStatus.cancelled &&
+        (current.status === OrderStatus.pending ||
+          current.status === OrderStatus.confirmed ||
+          current.status === OrderStatus.processing);
+      const canReturn =
+        dto.status === OrderStatus.returned &&
+        current.status === OrderStatus.completed;
+
+      if (!canCancel && !canReturn) {
         throw new ForbiddenException(
-          'Khách hàng chỉ được hủy đơn đang chờ xác nhận',
+          'Khách hàng chỉ được hủy đơn khi chưa giao vận chuyển hoặc trả hàng hoàn tiền khi đơn đã hoàn tất',
         );
       }
     }
@@ -555,9 +606,24 @@ export class OrdersService {
     if (
       dto.status === current.status &&
       (current.status === OrderStatus.cancelled ||
-        current.status === OrderStatus.completed)
+        current.status === OrderStatus.completed ||
+        current.status === OrderStatus.returned)
     )
       return current;
+
+    if (dto.status === OrderStatus.returned) {
+      const completedHistory = [...(current.statusHistory || [])]
+        .reverse()
+        .find((h) => h.toStatus === OrderStatus.completed);
+      const completedAt = completedHistory?.createdAt
+        ? new Date(completedHistory.createdAt)
+        : new Date(current.updatedAt || current.createdAt);
+      if (Date.now() - completedAt.getTime() > RETURN_WINDOW_MS) {
+        throw new BadRequestException(
+          `Đơn hàng đã quá thời hạn ${RETURN_WINDOW_DAYS} ngày kể từ lúc giao thành công nên không thể trả hàng và hoàn tiền`,
+        );
+      }
+    }
 
     const result = await this.prisma.extendedTransaction(async (tx) => {
       const claimed = await tx.order.updateMany({
@@ -592,17 +658,34 @@ export class OrdersService {
             data: { usedQuantity: { decrement: 1 } },
           });
         }
+        const shouldRefundOnCancel =
+          current.payment?.status === PaymentStatus.paid ||
+          current.payment?.method === PaymentMethod.credit_card ||
+          current.payment?.method === PaymentMethod.pay_later;
         await tx.payment.update({
           where: { orderId: id },
           data: {
-            status:
-              current.payment?.status === PaymentStatus.paid
-                ? PaymentStatus.refunded
-                : PaymentStatus.cancelled,
-            refundedAt:
-              current.payment?.status === PaymentStatus.paid
-                ? new Date()
-                : undefined,
+            status: shouldRefundOnCancel
+              ? PaymentStatus.refunded
+              : PaymentStatus.cancelled,
+            refundedAt: shouldRefundOnCancel ? new Date() : undefined,
+          },
+        });
+      }
+      if (dto.status === OrderStatus.returned) {
+        for (const detail of current.details) {
+          await tx.productVariant.update({
+            where: { id: detail.productVariantId },
+            data: { stock: { increment: detail.quantity } },
+          });
+        }
+        const now = new Date();
+        await tx.payment.update({
+          where: { orderId: id },
+          data: {
+            status: PaymentStatus.refunded,
+            paidAt: current.payment?.paidAt ?? now,
+            refundedAt: now,
           },
         });
       }
@@ -653,6 +736,19 @@ export class OrdersService {
     });
 
     this.emitOrder(result.updated, 'order:updated');
+    if (result.updated.payment) {
+      const paymentPayload = {
+        paymentId: result.updated.payment.id,
+        orderId: result.updated.id,
+        status: result.updated.payment.status,
+      };
+      this.realtime.emitToUser(
+        result.updated.clientId,
+        'payment:updated',
+        paymentPayload,
+      );
+      this.realtime.emitToAdmins('payment:updated', paymentPayload);
+    }
     this.surveysService.emitNotifications(result.surveyNotifications);
     return result.updated;
   }

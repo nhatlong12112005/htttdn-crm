@@ -37,10 +37,17 @@ export class RealtimeService {
   }
 
   emitCategoryUpdated(categoryId?: string) {
-    this.server?.to(['catalog', 'admins', 'vendors']).emit('category:updated', { categoryId });
+    this.server
+      ?.to(['catalog', 'admins', 'vendors'])
+      .emit('category:updated', { categoryId });
   }
 
   disconnectUser(userId: string) {
+    this.emitToUser(userId, 'account:locked', {
+      userId,
+      code: 'ACCOUNT_LOCKED',
+      message: 'Tài khoản của bạn đã bị khóa bởi Quản trị viên.',
+    });
     this.server?.in(`user:${userId}`).disconnectSockets(true);
   }
 }

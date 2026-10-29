@@ -1,4 +1,5 @@
 /* Run against the local demo database and API; remove only records created here. */
+require('dotenv').config();
 const { randomUUID } = require('node:crypto');
 const { PrismaClient } = require('@prisma/client');
 

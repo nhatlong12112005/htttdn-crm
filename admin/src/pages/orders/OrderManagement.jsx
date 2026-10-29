@@ -64,6 +64,7 @@ export default function OrderManagement() {
       confirmed: 'info',
       processing: 'info',
       shipping: 'info',
+      returned: 'warning',
       cancelled: 'error',
     };
     return styles[status] || 'default';
@@ -76,6 +77,7 @@ export default function OrderManagement() {
       processing: 'Đang đóng gói',
       shipping: 'Đang vận chuyển',
       completed: 'Hoàn tất',
+      returned: 'Đã trả hàng & Hoàn tiền',
       cancelled: 'Đã hủy',
     };
     return labels[status] || status.toUpperCase();
@@ -128,6 +130,7 @@ export default function OrderManagement() {
               { value: 'processing', label: 'Đang đóng gói (Processing)' },
               { value: 'shipping', label: 'Đang vận chuyển (Shipping)' },
               { value: 'completed', label: 'Hoàn tất (Completed)' },
+              { value: 'returned', label: 'Đã trả hàng & Hoàn tiền (Returned)' },
               { value: 'cancelled', label: 'Đã hủy (Cancelled)' }
             ]}
             value={statusFilter}
@@ -186,7 +189,7 @@ export default function OrderManagement() {
                       <td className="px-4 py-3 text-xs">
                         <span className="font-semibold text-slate-700 dark:text-slate-300">{paymentMethod}</span>
                         <span className="ml-1.5 text-slate-400">
-                          ({paymentStatus === 'paid' ? 'Đã TT' : paymentStatus === 'cancelled' ? 'Đã hủy' : 'Chờ TT'})
+                          ({paymentStatus === 'paid' ? 'Đã TT' : paymentStatus === 'refunded' ? 'Đã hoàn tiền' : paymentStatus === 'cancelled' ? 'Đã hủy' : 'Chờ TT'})
                         </span>
                       </td>
                       <td className="px-4 py-3">

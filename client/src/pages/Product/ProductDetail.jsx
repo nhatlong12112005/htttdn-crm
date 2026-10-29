@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Minus, Plus, ShoppingCart, Heart, ChevronRight, ChevronLeft, Package, Store, ShieldCheck, Star, MessageSquare } from 'lucide-react';
+import { Minus, Plus, ShoppingCart, Zap, Heart, ChevronRight, ChevronLeft, Package, Store, ShieldCheck, Star, MessageSquare } from 'lucide-react';
 import { useProductById, useProducts } from '../../hooks/useProducts';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
@@ -194,6 +194,42 @@ export default function ProductDetail() {
         toast.error(message || 'Không thể thêm vào giỏ hàng');
       }
     }
+  };
+
+  const handleBuyNow = () => {
+    if (!isAuthenticated) {
+      toast.info('Vui lòng đăng nhập để mua ngay sản phẩm');
+      navigate('/login');
+      return;
+    }
+    if (!selectedVariant || selectedVariant.stock <= 0) {
+      toast.warning('Sản phẩm hiện đã hết hàng');
+      return;
+    }
+
+    navigate('/checkout', {
+      state: {
+        buyNowItems: [
+          {
+            id: `buynow-${selectedVariant.id}`,
+            productVariantId: selectedVariant.id,
+            quantity,
+            productVariant: {
+              ...selectedVariant,
+              productColor: {
+                ...selectedColor,
+                product: {
+                  id: product.id,
+                  name: product.name,
+                  slug: product.slug,
+                  vendor: product.vendor,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
   };
 
   if (isLoading) return <Loading text="Đang tải sản phẩm..." />;
@@ -459,17 +495,27 @@ export default function ProductDetail() {
             <button
               onClick={handleAddToCart}
               disabled={isOutOfStock || isAdding}
-              className="flex-1 h-14 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/30"
+              className="flex-1 h-14 border-2 border-primary bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer px-4"
             >
               {isAdding ? (
-                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               ) : (
                 <ShoppingCart className="w-5 h-5" />
               )}
-              {isOutOfStock ? 'Hết hàng' : isAdding ? 'Đang thêm...' : 'Thêm vào giỏ hàng'}
+              {isOutOfStock ? 'Hết hàng' : isAdding ? 'Đang thêm...' : 'Thêm vào giỏ'}
+            </button>
+
+            <button
+              onClick={handleBuyNow}
+              disabled={isOutOfStock}
+              data-testid="buy-now-button"
+              className="flex-1 h-14 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/30 cursor-pointer px-4"
+            >
+              <Zap className="w-5 h-5 fill-current" />
+              {isOutOfStock ? 'Hết hàng' : 'Mua ngay'}
             </button>
 
             <button 

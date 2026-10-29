@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 import Button from '../../components/common/Button/Button';
 import { formatPrice } from '../../utils/formatPrice';
@@ -94,10 +95,22 @@ export default function PaymentDemo() {
           )}
         </div>
 
+        {payment.status === 'paid' && (
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-sm flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Đã ghi nhận thanh toán thành công (Demo)!</p>
+              <p className="text-xs mt-1">
+                Đơn hàng thanh toán qua {payment.method === 'credit_card' ? 'Thẻ tín dụng' : 'Trả sau'} đã được gạch nợ tự động. Nếu bạn hủy đơn hoặc trả hàng trong vòng 7 ngày sau khi nhận, số tiền sẽ được hoàn lại 100%.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="bg-light-bg dark:bg-dark-bg rounded-xl p-6 mb-8">
           <div className="flex justify-between items-center border-b border-light-border dark:border-dark-border pb-4 mb-4">
             <span className="text-light-muted dark:text-dark-muted">Mã đơn hàng</span>
-            <span className="font-medium text-light-text dark:text-dark-text">#{order.id.split('-')[0]}</span>
+            <span className="font-medium text-light-text dark:text-dark-text">#{order.orderCode || order.id.split('-')[0]}</span>
           </div>
           <div className="flex justify-between items-center border-b border-light-border dark:border-dark-border pb-4 mb-4">
             <span className="text-light-muted dark:text-dark-muted">Số tiền thanh toán</span>
@@ -110,17 +123,17 @@ export default function PaymentDemo() {
         </div>
 
         <div className="flex flex-col gap-4">
-          {['paid', 'cancelled', 'refunded'].includes(payment.status) ? (
+          {['cancelled', 'refunded'].includes(payment.status) ? (
             <Button onClick={continueToNextOrder} className="w-full h-14 text-lg">
               {remainingOrderIds.length ? 'Tiếp tục thanh toán đơn tiếp theo' : 'Xem đơn hàng'}
             </Button>
           ) : <>
           <Button 
-            onClick={() => handlePayment(true)} 
+            onClick={() => payment.status === 'paid' ? continueToNextOrder() : handlePayment(true)} 
             isLoading={processing}
             className="w-full h-14 text-lg"
           >
-            Mô phỏng Thanh toán THÀNH CÔNG
+            {payment.status === 'paid' ? 'Xác nhận Thanh toán THÀNH CÔNG & Xem đơn hàng' : 'Mô phỏng Thanh toán THÀNH CÔNG'}
           </Button>
           <Button 
             variant="outline" 

@@ -42,6 +42,9 @@ export class AuthGuard implements CanActivate {
     }
 
     const payload = await this.authService.verifyToken(token);
+    if (typeof this.authService.assertActiveAccount === 'function') {
+      await this.authService.assertActiveAccount(payload);
+    }
 
     request.user = {
       userID: payload.userID,

@@ -80,6 +80,31 @@ export class AuthService {
     }
   }
 
+  async assertActiveAccount(payload: TokenPayload): Promise<void> {
+    if (!this.prisma?.extended) return;
+    if (payload.role === 'client') {
+      const client = await this.prisma.extended.client.findUnique({
+        where: { id: payload.userID },
+        select: { status: true, deletedAt: true },
+      });
+      if (!client || client.status !== 'active' || client.deletedAt) {
+        throw new UnauthorizedException(
+          'Tài khoản của bạn đã bị khóa hoặc không còn hoạt động',
+        );
+      }
+    } else if (payload.role === 'admin') {
+      const admin = await this.prisma.extended.admin.findUnique({
+        where: { id: payload.userID },
+        select: { status: true, deletedAt: true },
+      });
+      if (!admin || admin.status !== 'active' || admin.deletedAt) {
+        throw new UnauthorizedException(
+          'Tài khoản quản trị đã bị khóa hoặc không còn hoạt động',
+        );
+      }
+    }
+  }
+
   async signUp(signUpDto: SignUpDto) {
     return this.registerClient(signUpDto);
   }

@@ -76,7 +76,7 @@ export class PaymentsService {
     const transitions: Record<PaymentStatus, PaymentStatus[]> = {
       pending: ['paid', 'failed', 'cancelled'],
       failed: ['pending', 'paid', 'cancelled'],
-      paid: ['refunded'],
+      paid: ['refunded', 'failed'],
       cancelled: [],
       refunded: [],
     };

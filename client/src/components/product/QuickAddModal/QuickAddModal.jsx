@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Minus, Plus, ShoppingCart, Package, Loader2 } from 'lucide-react';
+import { X, Minus, Plus, ShoppingCart, Zap, Package, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useCart } from '../../../hooks/useCart';
@@ -97,6 +97,42 @@ export default function QuickAddModal({ product, onClose }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBuyNow = () => {
+    if (!isAuthenticated) {
+      toast.info('Vui lòng đăng nhập để mua ngay sản phẩm');
+      onClose();
+      navigate('/login');
+      return;
+    }
+
+    if (!selectedVariant || selectedVariant.stock <= 0) return;
+
+    onClose();
+    navigate('/checkout', {
+      state: {
+        buyNowItems: [
+          {
+            id: `buynow-${selectedVariant.id}`,
+            productVariantId: selectedVariant.id,
+            quantity,
+            productVariant: {
+              ...selectedVariant,
+              productColor: {
+                ...selectedColor,
+                product: {
+                  id: product.id,
+                  name: product.name,
+                  slug: product.slug,
+                  vendor: product.vendor,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
   };
 
   const currentImage = selectedColor?.imageUrls?.[0] || null;
@@ -256,23 +292,34 @@ export default function QuickAddModal({ product, onClose }) {
             </div>
           </div>
 
-          {/* Add to cart button */}
-          <button
-            onClick={handleAddToCart}
-            disabled={isOutOfStock || isLoading}
-            className="w-full h-12 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <ShoppingCart className="w-5 h-5" />
-            )}
-            {isOutOfStock
-              ? 'Hết hàng'
-              : isLoading
-                ? 'Đang thêm...'
-                : 'Thêm vào giỏ hàng'}
-          </button>
+          {/* Action buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleAddToCart}
+              disabled={isOutOfStock || isLoading}
+              className="flex-1 h-12 border-2 border-primary bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ShoppingCart className="w-4 h-4" />
+              )}
+              {isOutOfStock
+                ? 'Hết hàng'
+                : isLoading
+                  ? 'Đang thêm...'
+                  : 'Thêm vào giỏ'}
+            </button>
+
+            <button
+              onClick={handleBuyNow}
+              disabled={isOutOfStock || isLoading}
+              className="flex-1 h-12 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 cursor-pointer text-sm"
+            >
+              <Zap className="w-4 h-4 fill-current" />
+              {isOutOfStock ? 'Hết hàng' : 'Mua ngay'}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

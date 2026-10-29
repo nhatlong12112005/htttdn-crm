@@ -4,6 +4,7 @@ require('dotenv').config();
 const assert = require('node:assert/strict');
 const { PrismaClient } = require('@prisma/client');
 const { chromium } = require('../../client/node_modules/playwright');
+const { ensurePortals } = require('./ensure-portals.cjs');
 
 const prisma = new PrismaClient();
 const portals = [
@@ -28,6 +29,7 @@ const portals = [
 ];
 
 async function main() {
+  const portalsRuntime = await ensurePortals();
   const product = await prisma.product.findFirst({ where: { status: 'active', deletedAt: null }, select: { id: true } });
   if (product) portals[0].routes.push(`/products/${product.id}`);
   const browser = await chromium.launch({ channel: process.env.MIVA_BROWSER_CHANNEL || 'msedge', headless: true });
@@ -103,6 +105,7 @@ async function main() {
     }
   } finally {
     await browser.close();
+    await portalsRuntime.stop();
     await prisma.$disconnect();
   }
   for (const result of results) console.log(`${result.errors.length ? 'FAIL' : 'PASS'} ${result.portal} ${result.route}${result.errors.length ? `: ${result.errors.join('; ')}` : ''}`);

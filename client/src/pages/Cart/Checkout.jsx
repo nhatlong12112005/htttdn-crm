@@ -68,15 +68,21 @@ export default function Checkout() {
     }
   }, [user]);
 
-  // Determine which items are being checked out
+  // Determine which items are being checked out (Buy Now or Cart selection)
+  const buyNowItems = location.state?.buyNowItems;
+  const isBuyNow = Array.isArray(buyNowItems) && buyNowItems.length > 0;
+
   const checkoutItems = useMemo(() => {
+    if (isBuyNow) {
+      return buyNowItems;
+    }
     const specifiedIds = location.state?.cartItemIds;
     if (specifiedIds && Array.isArray(specifiedIds) && specifiedIds.length > 0) {
       const filtered = items.filter((i) => specifiedIds.includes(i.id));
       if (filtered.length > 0) return filtered;
     }
     return items;
-  }, [items, location.state]);
+  }, [items, location.state, isBuyNow, buyNowItems]);
 
   // Group checkout items by Vendor / Shop
   const vendorPackages = useMemo(() => {
@@ -107,10 +113,10 @@ export default function Checkout() {
   }, [checkoutItems]);
   const pricing = useCheckoutPricing(checkoutItems, location.state?.voucherCodes || [], !isSubmitting && !checkoutCompletedRef.current);
 
-  if (isLoadingCart) {
+  if (isLoadingCart && !isBuyNow) {
     return <Loading text="Đang tải giỏ hàng..." />;
   }
-  if (items.length === 0 && !isSubmitting && !checkoutCompletedRef.current) {
+  if (checkoutItems.length === 0 && !isSubmitting && !checkoutCompletedRef.current) {
     return <Navigate to="/cart" replace />;
   }
 
@@ -242,7 +248,16 @@ export default function Checkout() {
         paymentMethod: paymentMethod,
         voucherCodes: pricing.codes,
         expectedTotalAmount: Number(pricing.data.totalAmount),
-        cartItemIds: checkoutItems.map((i) => i.id),
+        ...(isBuyNow
+          ? {
+              items: checkoutItems.map((i) => ({
+                productVariantId: i.productVariantId || i.productVariant?.id,
+                quantity: Number(i.quantity) || 1,
+              })),
+            }
+          : {
+              cartItemIds: checkoutItems.map((i) => i.id),
+            }),
       };
 
       checkoutCompletedRef.current = true;
@@ -283,7 +298,14 @@ export default function Checkout() {
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">Thanh toán đơn hàng</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">Thanh toán đơn hàng</h1>
+          {isBuyNow && (
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+              Chế độ Mua ngay
+            </span>
+          )}
+        </div>
         <p className="text-sm text-light-muted dark:text-dark-muted mt-1">
           Kiểm tra địa chỉ nhận hàng, phương thức thanh toán và xác nhận đặt hàng tại Cửa hàng MIVA Fashion
         </p>
@@ -440,19 +462,28 @@ export default function Checkout() {
             <div className="bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-2xl p-6 shadow-xs">
               <h2 className="text-lg font-bold text-light-text dark:text-dark-text mb-4">Phương thức thanh toán</h2>
               <div className="space-y-3">
-                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs' : 'border-light-border dark:border-dark-border'}`}>
-                  <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'} onChange={e => setPaymentMethod(e.target.value)} className="text-primary focus:ring-primary h-4 w-4" />
-                  <span className="font-medium text-sm text-light-text dark:text-dark-text">Thanh toán khi nhận hàng (COD)</span>
+                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'cod' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs' : 'border-light-border dark:border-dark-border'}`}>
+                  <input type="radio" name="payment" value="cod" checked={paymentMethod === 'cod'} onChange={e => setPaymentMethod(e.target.value)} className="mt-0.5 text-primary focus:ring-primary h-4 w-4" />
+                  <div>
+                    <span className="font-medium text-sm text-light-text dark:text-dark-text block">Thanh toán khi nhận hàng (COD)</span>
+                    <span className="text-xs text-light-muted dark:text-dark-muted">Thanh toán tiền mặt khi nhận hàng • Hỗ trợ trả hàng & hoàn tiền trong vòng 7 ngày từ lúc giao thành công</span>
+                  </div>
                 </label>
                 
-                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'credit_card' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs' : 'border-light-border dark:border-dark-border'}`}>
-                  <input type="radio" name="payment" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={e => setPaymentMethod(e.target.value)} className="text-primary focus:ring-primary h-4 w-4" />
-                  <span className="font-medium text-sm text-light-text dark:text-dark-text">Thẻ tín dụng / Thẻ ghi nợ (Demo)</span>
+                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'credit_card' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs' : 'border-light-border dark:border-dark-border'}`}>
+                  <input type="radio" name="payment" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={e => setPaymentMethod(e.target.value)} className="mt-0.5 text-primary focus:ring-primary h-4 w-4" />
+                  <div>
+                    <span className="font-medium text-sm text-light-text dark:text-dark-text block">Thẻ tín dụng / Thẻ ghi nợ (Demo)</span>
+                    <span className="text-xs text-light-muted dark:text-dark-muted">Thanh toán ngay khi đặt hàng • Tự động hoàn tiền 100% nếu hủy đơn hoặc trả hàng trong 7 ngày</span>
+                  </div>
                 </label>
 
-                <label className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'pay_later' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs' : 'border-light-border dark:border-dark-border'}`}>
-                  <input type="radio" name="payment" value="pay_later" checked={paymentMethod === 'pay_later'} onChange={e => setPaymentMethod(e.target.value)} className="text-primary focus:ring-primary h-4 w-4" />
-                  <span className="font-medium text-sm text-light-text dark:text-dark-text">Mua trước trả sau (Pay Later Demo)</span>
+                <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'pay_later' ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs' : 'border-light-border dark:border-dark-border'}`}>
+                  <input type="radio" name="payment" value="pay_later" checked={paymentMethod === 'pay_later'} onChange={e => setPaymentMethod(e.target.value)} className="mt-0.5 text-primary focus:ring-primary h-4 w-4" />
+                  <div>
+                    <span className="font-medium text-sm text-light-text dark:text-dark-text block">Mua trước trả sau (Pay Later Demo)</span>
+                    <span className="text-xs text-light-muted dark:text-dark-muted">Tất toán ngay cho đơn hàng (Demo) • Tự động hoàn hạn mức/tiền nếu hủy đơn hoặc trả hàng trong 7 ngày</span>
+                  </div>
                 </label>
               </div>
             </div>
@@ -480,7 +511,7 @@ export default function Checkout() {
             <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs leading-relaxed flex items-start gap-2">
               <Package className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>
-                Đơn hàng được đóng gói và kiểm định chất lượng trực tiếp từ kho trung tâm MIVA Fashion.
+                Đơn hàng được đóng gói và kiểm định chất lượng trực tiếp từ kho trung tâm MIVA Fashion. Hỗ trợ đổi trả & hoàn tiền trong vòng 7 ngày kể từ khi giao thành công.
               </span>
             </div>
             

@@ -405,10 +405,12 @@ export class ReportsService {
       date?: string;
       gmv: number;
       cashIn: number;
+      refundedAmount: number;
       adminTax: number;
       orders: number;
       completedOrders: number;
       cancelledOrders: number;
+      returnedOrders: number;
     }>;
 
     if (period === 'year') {
@@ -419,10 +421,12 @@ export class ReportsService {
         label: `Tháng ${i + 1}`,
         gmv: 0,
         cashIn: 0,
+        refundedAmount: 0,
         adminTax: 0,
         orders: 0,
         completedOrders: 0,
         cancelledOrders: 0,
+        returnedOrders: 0,
       }));
     } else if (period === 'quarter') {
       const quarter = query.quarter ? Number(query.quarter) : 3;
@@ -437,10 +441,12 @@ export class ReportsService {
         label: `Tháng ${startMonth + 1 + offset}`,
         gmv: 0,
         cashIn: 0,
+        refundedAmount: 0,
         adminTax: 0,
         orders: 0,
         completedOrders: 0,
         cancelledOrders: 0,
+        returnedOrders: 0,
       }));
     } else if (period === 'month') {
       const month = query.month
@@ -463,10 +469,12 @@ export class ReportsService {
           label: `${dayStr}/${monthStr}`,
           gmv: 0,
           cashIn: 0,
+          refundedAmount: 0,
           adminTax: 0,
           orders: 0,
           completedOrders: 0,
           cancelledOrders: 0,
+          returnedOrders: 0,
         };
       });
     } else if (period === 'week') {
@@ -498,10 +506,12 @@ export class ReportsService {
           date: curDateStr,
           gmv: 0,
           cashIn: 0,
+          refundedAmount: 0,
           adminTax: 0,
           orders: 0,
           completedOrders: 0,
           cancelledOrders: 0,
+          returnedOrders: 0,
         };
       });
     } else if (period === 'custom') {
@@ -525,10 +535,12 @@ export class ReportsService {
           date: curDateStr,
           gmv: 0,
           cashIn: 0,
+          refundedAmount: 0,
           adminTax: 0,
           orders: 0,
           completedOrders: 0,
           cancelledOrders: 0,
+          returnedOrders: 0,
         });
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
@@ -541,10 +553,12 @@ export class ReportsService {
           label: `Năm ${y}`,
           gmv: 0,
           cashIn: 0,
+          refundedAmount: 0,
           adminTax: 0,
           orders: 0,
           completedOrders: 0,
           cancelledOrders: 0,
+          returnedOrders: 0,
         }))
         .reverse();
     }
@@ -601,9 +615,12 @@ export class ReportsService {
 
     let totalGmv = 0;
     let totalCashIn = 0;
+    let totalRefundedAmount = 0;
     let orderTaxRevenueTotal = 0;
     let completedOrdersCount = 0;
     let cancelledOrdersCount = 0;
+    let returnedOrdersCount = 0;
+    let refundedOrdersCount = 0;
     const bucketMap = new Map(chartBuckets.map((b) => [b.key, b]));
 
     const categorySalesMap = new Map<
@@ -651,19 +668,35 @@ export class ReportsService {
       }
 
       const orderAmount = Number(order.totalAmount || 0);
+      const paymentAmount = Number(order.payment?.amount || orderAmount);
 
       let orderCashIn = 0;
-      if (order.payment?.status === 'paid') {
-        orderCashIn = Number(order.payment.amount || orderAmount);
+      if (
+        order.payment?.status === 'paid' ||
+        (order.payment?.status === 'refunded' && order.payment?.paidAt)
+      ) {
+        orderCashIn = paymentAmount;
       } else if (
         order.payment?.method === 'cod' &&
-        order.status === OrderStatus.completed
+        (order.status === OrderStatus.completed ||
+          order.status === OrderStatus.returned)
       ) {
         orderCashIn = orderAmount;
       }
       totalCashIn += orderCashIn;
       if (bucket) {
         bucket.cashIn += orderCashIn;
+      }
+
+      if (
+        order.payment?.status === 'refunded' ||
+        order.status === OrderStatus.returned
+      ) {
+        totalRefundedAmount += paymentAmount;
+        refundedOrdersCount += 1;
+        if (bucket) {
+          bucket.refundedAmount += paymentAmount;
+        }
       }
 
       if (order.status === OrderStatus.completed) {
@@ -731,12 +764,18 @@ export class ReportsService {
         if (bucket) {
           bucket.cancelledOrders += 1;
         }
+      } else if (order.status === OrderStatus.returned) {
+        returnedOrdersCount++;
+        if (bucket) {
+          bucket.returnedOrders += 1;
+        }
       }
     }
 
     const orderTaxRevenue = orderTaxRevenueTotal;
     const totalAdminRevenue = orderTaxRevenue;
     const vendorNetRevenue = totalGmv - orderTaxRevenue;
+    const netCashIn = Math.max(0, totalCashIn - totalRefundedAmount);
 
     const topVendors = Array.from(categorySalesMap.values())
       .map((v) => ({
@@ -771,6 +810,8 @@ export class ReportsService {
       summary: {
         totalGmv,
         totalCashIn,
+        totalRefundedAmount,
+        netCashIn,
         totalAdminRevenue,
         vendorFeeRevenue: 0,
         allTimeVendorFeeRevenue: 0,
@@ -781,6 +822,8 @@ export class ReportsService {
         totalSystemOrdersCount,
         completedOrdersCount,
         cancelledOrdersCount,
+        returnedOrdersCount,
+        refundedOrdersCount,
         conversionRate:
           orders.length > 0
             ? Number(((completedOrdersCount / orders.length) * 100).toFixed(1))

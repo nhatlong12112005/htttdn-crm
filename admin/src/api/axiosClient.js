@@ -43,6 +43,16 @@ axiosClient.interceptors.response.use(
     }
     const originalRequest = error.config;
 
+    if (error.response?.status === 401) {
+      const msg = String(error.response?.data?.message || '');
+      if (msg.includes('khóa') || msg.includes('không còn hoạt động')) {
+        window.dispatchEvent(
+          new CustomEvent('miva:account-locked', { detail: error.response?.data })
+        );
+        return Promise.reject(error);
+      }
+    }
+
     // Nếu 401 và chưa retry
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Không retry cho các auth-related endpoints

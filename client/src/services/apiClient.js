@@ -16,6 +16,13 @@ apiClient.interceptors.response.use(
       error.message = error.code === 'ECONNABORTED'
         ? 'Yêu cầu quá thời gian. Vui lòng thử lại.'
         : 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra mạng và thử lại.';
+    } else if (error.response.status === 401) {
+      const msg = String(error.response?.data?.message || '');
+      if (msg.includes('khóa') || msg.includes('không còn hoạt động')) {
+        window.dispatchEvent(
+          new CustomEvent('miva:account-locked', { detail: error.response?.data })
+        );
+      }
     }
     return Promise.reject(error);
   }

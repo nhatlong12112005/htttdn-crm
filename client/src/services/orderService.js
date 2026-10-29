@@ -4,7 +4,7 @@ export const orderService = {
   checkout: async (data) => {
     return await apiClient.post('/orders/checkout', data);
   },
-  
+
   getOrders: async (params = {}) => {
     return await apiClient.get('/orders/mine', { params });
   },
@@ -15,5 +15,9 @@ export const orderService = {
 
   cancelOrder: async (id, note) => {
     return await apiClient.patch(`/orders/${id}/status`, { status: 'cancelled', note });
+  },
+
+  returnOrder: async (id, note) => {
+    return await apiClient.patch(`/orders/${id}/status`, { status: 'returned', note });
   },
 };

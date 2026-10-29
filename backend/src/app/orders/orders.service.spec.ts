@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   OrderStatus,
   PaymentMethod,
@@ -108,6 +109,101 @@ describe('OrdersService', () => {
     expect(result).toEqual(
       expect.objectContaining({ surveyPrompts: [prompt] }),
     );
+  });
+
+  it('supports direct Buy Now checkout without touching cart items and auto-pays pay_later/credit_card', async () => {
+    const clientId = '11111111-1111-4111-8111-111111111111';
+    const orderId = '33333333-3333-4333-8333-333333333333';
+    const variantId = '55555555-5555-4555-8555-555555555555';
+    const order = {
+      id: orderId,
+      orderCode: 'ORDER-BUYNOW',
+      clientId,
+      status: OrderStatus.pending,
+      vendorOrders: [],
+      shipments: [],
+      details: [{ productVariant: { productColor: { product: { vendorId: null } } } }],
+    };
+    const tx = {
+      cart: { findUnique: jest.fn() },
+      order: {
+        create: jest.fn().mockResolvedValue(order),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(order),
+      },
+      productVariant: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      orderDetail: { create: jest.fn(), updateMany: jest.fn() },
+      vendorOrder: { create: jest.fn() },
+      employee: { findMany: jest.fn().mockResolvedValue([]) },
+      shipment: { create: jest.fn().mockResolvedValue({ id: 'shipment' }) },
+      payment: { create: jest.fn() },
+      orderStatusHistory: { create: jest.fn() },
+      cartItem: { deleteMany: jest.fn() },
+      surveyResponse: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const prisma = {
+      $transaction: jest.fn((cb: (client: typeof tx) => Promise<unknown>) => cb(tx)),
+    };
+    Object.assign(prisma, { extended: prisma, extendedTransaction: prisma.$transaction });
+    const vouchers = {
+      calculate: jest.fn().mockResolvedValue({
+        subtotalAmount: new Prisma.Decimal(200),
+        discountAmount: new Prisma.Decimal(0),
+        totalAmount: new Prisma.Decimal(200),
+        applications: [],
+        items: [
+          {
+            productVariantId: variantId,
+            quantity: 2,
+            variant: {
+              price: new Prisma.Decimal(100),
+              size: 'L',
+              productColor: {
+                color: 'Trắng',
+                imageUrls: ['image.jpg'],
+                product: { name: 'Áo Sơ Mi', vendorId: null },
+              },
+            },
+          },
+        ],
+      }),
+    };
+    const realtime = {
+      emitToUser: jest.fn(),
+      emitToAdmins: jest.fn(),
+      emitToVendor: jest.fn(),
+      emitToEmployees: jest.fn(),
+      emitProductUpdated: jest.fn(),
+    };
+    const surveys = {
+      deliverForOrder: jest.fn().mockResolvedValue([]),
+      emitNotifications: jest.fn(),
+    };
+    const service = new OrdersService(
+      prisma as unknown as PrismaService,
+      vouchers as unknown as VouchersService,
+      realtime as unknown as RealtimeService,
+      surveys as unknown as SurveysService,
+    );
+
+    await service.checkout(clientId, {
+      receiverName: 'Khách hàng Mua Ngay',
+      receiverPhone: '0901234567',
+      shippingAddress: '123 Đường ABC, TP.HCM',
+      paymentMethod: PaymentMethod.pay_later,
+      items: [{ productVariantId: variantId, quantity: 2 }],
+      voucherCodes: [],
+    });
+
+    expect(tx.cart.findUnique).not.toHaveBeenCalled();
+    expect(tx.cartItem.deleteMany).not.toHaveBeenCalled();
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId,
+        method: PaymentMethod.pay_later,
+        status: PaymentStatus.paid,
+        paidAt: expect.any(Date) as Date,
+      }),
+    });
   });
 
   it('restores stock and voucher usage directly when a pending order is cancelled', async () => {
@@ -227,5 +323,110 @@ describe('OrdersService', () => {
       where: { orderId },
       data: { status: PaymentStatus.refunded, refundedAt: expect.any(Date) as Date },
     });
+  });
+
+  it('allows returning a completed order within 7 days and refunds the payment, and rejects after 7 days', async () => {
+    const clientId = '11111111-1111-4111-8111-111111111111';
+    const orderId = '22222222-2222-4222-8222-222222222222';
+    const variantId = '33333333-3333-4333-8333-333333333333';
+    const completedOrder = {
+      id: orderId,
+      orderCode: 'ORDER-RETURN',
+      clientId,
+      status: OrderStatus.completed,
+      updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      vendorOrders: [],
+      shipments: [{ deliveredAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }],
+      statusHistory: [{ toStatus: OrderStatus.completed, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }],
+      payment: { status: PaymentStatus.paid, method: PaymentMethod.credit_card, paidAt: new Date() },
+      details: [
+        {
+          productVariantId: variantId,
+          quantity: 1,
+          productVariant: { productColor: { product: { vendorId: null } } },
+        },
+      ],
+      voucherDetails: [],
+    };
+    const tx = {
+      productVariant: { update: jest.fn() },
+      vendorOrder: { updateMany: jest.fn() },
+      shipment: { updateMany: jest.fn() },
+      voucherDetail: { update: jest.fn() },
+      voucher: { updateMany: jest.fn() },
+      payment: { update: jest.fn() },
+      order: {
+        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          ...completedOrder,
+          status: OrderStatus.returned,
+          payment: { ...completedOrder.payment, status: PaymentStatus.refunded },
+        }),
+      },
+      employee: { findMany: jest.fn().mockResolvedValue([]) },
+      orderStatusHistory: { create: jest.fn() },
+    };
+    const prisma = {
+      order: { findUnique: jest.fn().mockResolvedValue(completedOrder) },
+      $transaction: jest.fn((cb: (client: typeof tx) => Promise<unknown>) => cb(tx)),
+    };
+    Object.assign(prisma, { extended: prisma, extendedTransaction: prisma.$transaction });
+    const realtime = {
+      emitToUser: jest.fn(),
+      emitToAdmins: jest.fn(),
+      emitToVendor: jest.fn(),
+      emitToEmployees: jest.fn(),
+      emitProductUpdated: jest.fn(),
+    };
+    const service = new OrdersService(
+      prisma as unknown as PrismaService,
+      {} as VouchersService,
+      realtime as unknown as RealtimeService,
+      { deliverForOrder: jest.fn().mockResolvedValue([]), emitNotifications: jest.fn() } as unknown as SurveysService,
+    );
+
+    const clientUser = {
+      userID: clientId,
+      userEmail: 'customer@example.com',
+      fullName: 'Customer',
+      phone: null,
+      avatar: null,
+      gender: null,
+      address: null,
+      role: 'client' as const,
+    };
+
+    await service.updateStatus(orderId, { status: OrderStatus.returned, note: 'Sản phẩm không vừa size' }, clientUser);
+
+    expect(tx.productVariant.update).toHaveBeenCalledWith({
+      where: { id: variantId },
+      data: { stock: { increment: 1 } },
+    });
+    expect(tx.payment.update).toHaveBeenCalledWith({
+      where: { orderId },
+      data: {
+        status: PaymentStatus.refunded,
+        refundedAt: expect.any(Date) as Date,
+        paidAt: expect.any(Date) as Date,
+      },
+    });
+    expect(realtime.emitToAdmins).toHaveBeenCalledWith(
+      'payment:updated',
+      expect.objectContaining({ orderId, status: PaymentStatus.refunded }),
+    );
+
+    // Expired (> 7 days)
+    const expiredDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    prisma.order.findUnique.mockResolvedValue({
+      ...completedOrder,
+      updatedAt: expiredDate,
+      shipments: [{ deliveredAt: expiredDate }],
+      statusHistory: [{ toStatus: OrderStatus.completed, createdAt: expiredDate }],
+    });
+
+    await expect(
+      service.updateStatus(orderId, { status: OrderStatus.returned }, clientUser),
+    ).rejects.toThrow(BadRequestException);
   });
 });

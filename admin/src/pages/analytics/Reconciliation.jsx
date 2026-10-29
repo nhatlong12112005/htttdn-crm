@@ -5,6 +5,32 @@ const money = (value) => new Intl.NumberFormat('vi-VN', { style: 'currency', cur
 const dateTime = (value) => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Bangkok' }) : '—';
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
+const ORDER_STATUS_LABELS = {
+  pending: 'Chờ xác nhận',
+  confirmed: 'Đã xác nhận',
+  processing: 'Đang đóng gói',
+  shipping: 'Đang giao',
+  completed: 'Hoàn tất',
+  returned: 'Đã trả hàng',
+  cancelled: 'Đã hủy',
+};
+
+const PAYMENT_STATUS_LABELS = {
+  pending: 'Chờ TT',
+  paid: 'Đã thu',
+  refunded: 'Đã hoàn tiền',
+  cancelled: 'Đã hủy',
+  failed: 'Thất bại',
+};
+
+const PAYMENT_METHOD_LABELS = {
+  cod: 'COD',
+  bank_transfer: 'Chuyển khoản',
+  e_wallet: 'Ví điện tử',
+  credit_card: 'Thẻ tín dụng',
+  pay_later: 'Trả sau',
+};
+
 export default function Reconciliation() {
   const [startDate, setStartDate] = useState('2020-01-01');
   const [endDate, setEndDate] = useState(today);
@@ -119,8 +145,12 @@ export default function Reconciliation() {
               <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                 <td className="px-3 py-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">{row.orderCode}</td>
                 <td className="px-3 py-3 text-slate-700 dark:text-slate-200 truncate max-w-[140px]" title={row.client?.fullName}>{row.client?.fullName || '—'}</td>
-                <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.orderStatus}</td>
-                <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.paymentMethod || '—'} · {row.paymentStatus || '—'}</td>
+                <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                  {ORDER_STATUS_LABELS[row.orderStatus] || row.orderStatus}
+                </td>
+                <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                  {PAYMENT_METHOD_LABELS[row.paymentMethod] || row.paymentMethod || '—'} · {PAYMENT_STATUS_LABELS[row.paymentStatus] || row.paymentStatus || '—'}
+                </td>
                 <td className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{dateTime(row.orderCreatedAt)}</td>
                 <td className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{dateTime(row.paidAt)}</td>
                 <td className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{dateTime(row.refundedAt)}</td>

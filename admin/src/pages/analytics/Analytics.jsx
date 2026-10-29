@@ -17,6 +17,8 @@ import {
   Package,
   RefreshCw,
   Calendar,
+  RotateCcw,
+  Wallet,
 } from 'lucide-react';
 import { reportsApi } from '../../api';
 import { Button, Badge } from '../../components/ui';
@@ -37,12 +39,16 @@ export default function Analytics() {
     summary: {
       totalGmv: 0,
       totalCashIn: 0,
+      totalRefundedAmount: 0,
+      netCashIn: 0,
       totalAdminRevenue: 0,
       orderTaxRevenue: 0,
       vendorNetRevenue: 0,
       totalOrdersCount: 0,
       completedOrdersCount: 0,
       cancelledOrdersCount: 0,
+      returnedOrdersCount: 0,
+      refundedOrdersCount: 0,
       conversionRate: 0,
     },
     chartData: [],
@@ -78,6 +84,11 @@ export default function Analytics() {
 
   useEffect(() => {
     fetchAnalytics();
+  }, [fetchAnalytics]);
+
+  useEffect(() => {
+    window.addEventListener('miva:dashboard', fetchAnalytics);
+    return () => window.removeEventListener('miva:dashboard', fetchAnalytics);
   }, [fetchAnalytics]);
 
   const formatVND = (val) =>
@@ -216,7 +227,7 @@ export default function Analytics() {
       </div>
 
       {/* Overview cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             title: 'Tổng Doanh Thu (GMV)',
@@ -227,9 +238,25 @@ export default function Analytics() {
             bg: 'bg-emerald-100 dark:bg-emerald-950/60',
           },
           {
+            title: 'Thực Thu Sau Hoàn Tiền',
+            value: formatVND(summary.netCashIn),
+            sub: `Đã thu: ${formatVND(summary.totalCashIn)}`,
+            icon: Wallet,
+            color: 'text-blue-600',
+            bg: 'bg-blue-100 dark:bg-blue-950/60',
+          },
+          {
+            title: 'Tổng Tiền Hoàn Trả (Refund)',
+            value: formatVND(summary.totalRefundedAmount),
+            sub: `${summary.refundedOrdersCount || 0} đơn hoàn tiền • ${summary.returnedOrdersCount || 0} đơn trả hàng`,
+            icon: RotateCcw,
+            color: 'text-rose-600',
+            bg: 'bg-rose-100 dark:bg-rose-950/60',
+          },
+          {
             title: 'Tổng Đơn Hàng',
             value: (summary.totalOrdersCount || 0).toLocaleString(),
-            sub: `${summary.completedOrdersCount || 0} hoàn tất • ${summary.cancelledOrdersCount || 0} hủy (${summary.conversionRate || 0}%)`,
+            sub: `${summary.completedOrdersCount || 0} hoàn tất • ${summary.returnedOrdersCount || 0} trả hàng • ${summary.cancelledOrdersCount || 0} hủy (${summary.conversionRate || 0}%)`,
             icon: ShoppingBag,
             color: 'text-amber-600',
             bg: 'bg-amber-100 dark:bg-amber-950/60',
@@ -263,10 +290,10 @@ export default function Analytics() {
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
-              Biểu đồ doanh thu
+              Biểu đồ doanh thu & hoàn tiền
             </h3>
             <p className="text-xs text-slate-400">
-              Giá trị các đơn đã hoàn tất theo thời gian
+              Giá trị các đơn đã hoàn tất (GMV) và số tiền hoàn trả theo thời gian
             </p>
           </div>
 
@@ -277,6 +304,10 @@ export default function Analytics() {
                   <linearGradient id="colorGmv" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#e11d48" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#e11d48" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorRefund" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -318,6 +349,15 @@ export default function Analytics() {
                   fill="url(#colorGmv)"
                   strokeWidth={2}
                 />
+                <Area
+                  type="monotone"
+                  dataKey="refundedAmount"
+                  name="Tiền Hoàn Trả (Refund)"
+                  stroke="#f59e0b"
+                  fillOpacity={1}
+                  fill="url(#colorRefund)"
+                  strokeWidth={2}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -327,7 +367,7 @@ export default function Analytics() {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
-              Đơn Hoàn tất vs Đã hủy
+              Đơn Hoàn tất, Trả hàng & Đã hủy
             </h3>
             <p className="text-xs text-slate-400">Số lượng đơn hàng theo mốc thời gian</p>
           </div>
@@ -359,6 +399,7 @@ export default function Analytics() {
                 />
                 <Legend />
                 <Bar dataKey="completedOrders" name="Hoàn tất" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="returnedOrders" name="Trả hàng & Hoàn tiền" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="cancelledOrders" name="Đã hủy" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
