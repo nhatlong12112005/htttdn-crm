@@ -11,19 +11,19 @@ const portals = [
   {
     name: 'client', port: 5173, role: 'client',
     email: process.env.CRM_TEST_CLIENT_EMAIL || 'client1@miva.vn',
-    password: process.env.CRM_TEST_PASSWORD || 'admin123',
+    password: process.env.CRM_TEST_PASSWORD || '123456',
     routes: ['/', '/products', '/cart', '/checkout', '/profile', '/orders', '/favorites', '/surveys', '/about', '/contact'],
   },
   {
     name: 'crm', port: 5174, role: 'crm',
     email: process.env.CRM_TEST_CRM_EMAIL || 'crm@miva.vn',
-    password: process.env.CRM_TEST_PASSWORD || 'admin123',
+    password: process.env.CRM_TEST_PASSWORD || '123456',
     routes: ['/dashboard', '/users', '/categories', '/products', '/orders', '/vouchers', '/reviews', '/surveys', '/customer-analytics'],
   },
   {
     name: 'admin', port: 5175, role: 'admin',
     email: process.env.CRM_TEST_ADMIN_EMAIL || 'admin@miva.vn',
-    password: process.env.CRM_TEST_PASSWORD || 'admin123',
+    password: process.env.CRM_TEST_PASSWORD || '123456',
     routes: ['/system/accounts', '/system/revenue', '/system/reconciliation'],
   },
 ];

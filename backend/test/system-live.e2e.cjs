@@ -10,7 +10,7 @@ const { ensurePortals } = require('./ensure-portals.cjs');
 
 const prisma = new PrismaClient();
 let apiBase = process.env.CRM_TEST_API_URL || 'http://localhost:3000/api';
-const password = process.env.CRM_TEST_PASSWORD || 'admin123';
+const password = process.env.CRM_TEST_PASSWORD || '123456';
 const marker = `SYSTEM-E2E-${randomUUID().slice(0, 8)}`;
 const owned = {
   clients: [],
@@ -447,12 +447,14 @@ async function main() {
       { status: 'cancelled', amount: 20, paymentStatus: 'refunded', refundedAt: fixtureDate },
     ];
     for (const [index, fixture] of fixtures.entries()) {
-      const order = await prisma.order.create({ data: {
-        clientId: owned.clients[0], orderCode: `${marker}-${index}`, notes: marker,
-        status: fixture.status, totalAmount: fixture.amount, subtotalAmount: fixture.amount,
-        createdAt: fixtureDate,
-        payment: { create: { method: 'vnpay', amount: fixture.amount, status: fixture.paymentStatus, paidAt: fixtureDate, refundedAt: fixture.refundedAt } },
-      } });
+      const order = await prisma.order.create({
+        data: {
+          clientId: owned.clients[0], orderCode: `${marker}-${index}`, notes: marker,
+          status: fixture.status, totalAmount: fixture.amount, subtotalAmount: fixture.amount,
+          createdAt: fixtureDate,
+          payment: { create: { method: 'vnpay', amount: fixture.amount, status: fixture.paymentStatus, paidAt: fixtureDate, refundedAt: fixture.refundedAt } },
+        }
+      });
       owned.orders.push(order.id);
     }
     const report = await call('/admin/reports/reconciliation?startDate=2034-02-03&endDate=2034-02-03', { token: adminToken });

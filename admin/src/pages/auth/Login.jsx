@@ -87,9 +87,9 @@ export default function Login({ mode: propMode }) {
   const handleFillDemo = () => {
     setError('');
     if (isSystemLogin) {
-      setFormData({ email: 'admin@miva.vn', password: 'admin123' });
+      setFormData({ email: 'admin@miva.vn', password: '123456' });
     } else {
-      setFormData({ email: 'crm@miva.vn', password: 'admin123' });
+      setFormData({ email: 'crm@miva.vn', password: '123456' });
     }
   };
 

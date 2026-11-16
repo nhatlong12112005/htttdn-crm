@@ -32,10 +32,10 @@ async function startDualPortals() {
   console.log('🚀 HỆ THỐNG ĐÃ SẴN SÀNG TRÊN CÁC CỔNG LOCALHOST ĐỘC LẬP');
   console.log('====================================================================');
   console.log('🔵 [1] CỔNG NGƯỜI QUẢN LÝ CRM : http://localhost:5174/login/crm');
-  console.log('       • Tài khoản            : crm@miva.vn / admin123');
+  console.log('       • Tài khoản            : crm@miva.vn / 123456');
   console.log('--------------------------------------------------------------------');
   console.log('🔴 [2] CỔNG ADMIN SERVER      : http://localhost:5175/login/admin');
-  console.log('       • Tài khoản            : admin@miva.vn / admin123');
+  console.log('       • Tài khoản            : admin@miva.vn / 123456');
   console.log('====================================================================\n');
 }
 

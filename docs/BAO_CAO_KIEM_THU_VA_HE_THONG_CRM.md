@@ -131,20 +131,20 @@ Sơ đồ ngữ cảnh thể hiện biên giới của hệ thống (Tiến trì
 
 ```mermaid
 flowchart LR
-    ADMIN["<b>ADMIN SERVER</b><br/>(Quản trị hệ thống)"]
-    CRM["<b>NGƯỜI QUẢN LÝ CRM</b><br/>(CRM Manager)"]
-    CLIENT["<b>KHÁCH HÀNG</b><br/>(Customer / Client)"]
+    ADMIN["ADMIN SERVER (Quản trị hệ thống)"]
+    CRM["NGƯỜI QUẢN LÝ CRM (CRM Manager)"]
+    CLIENT["KHÁCH HÀNG (Customer / Client)"]
 
-    SYS(("<b>0.</b><br/><b>HỆ THỐNG THÔNG TIN</b><br/><b>QUẢN LÝ KHÁCH HÀNG (CRM)</b><br/><b>& THƯƠNG MẠI MIVA</b>"))
+    SYS(("0. HỆ THỐNG THÔNG TIN QUẢN LÝ KHÁCH HÀNG (CRM) & THƯƠNG MẠI MIVA"))
 
-    ADMIN -->|"1. Thông tin đăng nhập Admin, lệnh tạo/xóa/khóa account & phân quyền"| SYS
-    SYS -->|"2. Danh sách tài khoản, trạng thái phân quyền & nhật ký hệ thống"| ADMIN
+    ADMIN -->|"1. Đăng nhập Admin, tạo/xóa/khóa account, phân quyền, đối soát & xem doanh thu/hoàn tiền"| SYS
+    SYS -->|"2. Danh sách tài khoản, trạng thái phân quyền, báo cáo doanh thu, thực thu & tiền hoàn trả"| ADMIN
 
-    CRM -->|"3. Thông tin thêm/xóa/khóa KH, sản phẩm, câu trả lời phản hồi, bảng khảo sát"| SYS
-    SYS -->|"4. Hồ sơ KH, phản hồi SP, báo cáo tỷ lệ độ tuổi/sở thích & thống kê khảo sát"| CRM
+    CRM -->|"3. Thêm/xóa/khóa KH, quản lý SP/voucher, xử lý đơn/trả hàng, trả lời đánh giá, phát hành khảo sát"| SYS
+    SYS -->|"4. Hồ sơ KH, đơn hàng, phản hồi SP, báo cáo tỷ lệ độ tuổi/sở thích & thống kê khảo sát"| CRM
 
-    CLIENT -->|"5. Đăng ký, đăng nhập, sửa hồ sơ, thả tim SP, đặt hàng, gửi phản hồi & nộp khảo sát"| SYS
-    SYS -->|"6. Thông tin sản phẩm, trạng thái đơn hàng, câu trả lời CSKH & phiếu khảo sát"| CLIENT
+    CLIENT -->|"5. Đăng ký/đăng nhập, sửa hồ sơ, thả tim SP, giỏ hàng/Mua ngay, hủy đơn/trả hàng 7 ngày, đánh giá & nộp khảo sát"| SYS
+    SYS -->|"6. Thông tin SP, trạng thái đơn & hoàn tiền, phản hồi CSKH, phiếu khảo sát & cảnh báo khóa tài khoản tức thì"| CLIENT
 ```
 
 ---
@@ -156,84 +156,257 @@ Phân rã Tiến trình `0` thành **6 Tiến trình nghiệp vụ chính (`1.0`
 ```mermaid
 flowchart TD
     %% External Entities
-    ADMIN["<b>ADMIN SERVER</b>"]
-    CRM["<b>NGƯỜI QUẢN LÝ CRM</b>"]
-    CLIENT["<b>KHÁCH HÀNG</b>"]
+    ADMIN["ADMIN SERVER (Quản trị hệ thống)"]
+    CRM["NGƯỜI QUẢN LÝ CRM (CRM Manager)"]
+    CLIENT["KHÁCH HÀNG (Client)"]
 
     %% Processes
-    P1(("<b>1.0</b><br/><b>Quản trị Tài khoản</b><br/><b>& Phân quyền</b>"))
-    P2(("<b>2.0</b><br/><b>Quản lý Hồ sơ</b><br/><b>Khách hàng</b>"))
-    P3(("<b>3.0</b><br/><b>Quản lý Sản phẩm,</b><br/><b>Yêu thích & Đơn hàng</b>"))
-    P4(("<b>4.0</b><br/><b>Tiếp nhận & Xử lý</b><br/><b>Phản hồi Sản phẩm</b>"))
-    P5(("<b>5.0</b><br/><b>Tạo, Gửi & Thống kê</b><br/><b>Khảo sát CRM</b>"))
-    P6(("<b>6.0</b><br/><b>Tổng hợp Báo cáo</b><br/><b>Độ tuổi & Sở thích</b>"))
+    P1(("1.0 Quản trị Tài khoản, Phân quyền & Khóa phiên tức thì"))
+    P2(("2.0 Quản lý Hồ sơ & Địa chỉ Khách hàng"))
+    P3(("3.0 Quản lý Sản phẩm, Mua ngay, Đơn hàng & Trả hàng/Hoàn tiền"))
+    P4(("4.0 Tiếp nhận & Phản hồi Đánh giá Sản phẩm"))
+    P5(("5.0 Tạo, Phát hành & Thống kê Khảo sát CRM"))
+    P6(("6.0 Thống kê Doanh thu, Hoàn tiền, Đối soát & Phân tích KH"))
 
     %% Data Stores
-    D1[("<b>D1: Tài khoản Quản trị</b><br/>(Admin)")]
-    D2[("<b>D2: Hồ sơ Khách hàng</b><br/>(Client, ClientAddress)")]
-    D3[("<b>D3: Danh mục & Sản phẩm</b><br/>(Category, Product, Color, Variant)")]
-    D4[("<b>D4: Yêu thích, Giỏ hàng & Voucher</b><br/>(ProductFavorite, Cart, Voucher)")]
-    D5[("<b>D5: Đơn hàng & Thanh toán</b><br/>(Order, OrderDetail, Payment)")]
-    D6[("<b>D6: Phản hồi & Đánh giá</b><br/>(Review)")]
-    D7[("<b>D7: Khảo sát & Thông báo</b><br/>(Survey, Question, Response, Notification)")]
+    D1[("D1: Tài khoản Quản trị (Admin)")]
+    D2[("D2: Hồ sơ Khách hàng (Client, ClientAddress)")]
+    D3[("D3: Danh mục & Sản phẩm (Category, Product, Color, Variant)")]
+    D4[("D4: Yêu thích, Giỏ hàng & Voucher (ProductFavorite, Cart, Voucher)")]
+    D5[("D5: Đơn hàng, Thanh toán & Hoàn tiền (Order, OrderDetail, Payment)")]
+    D6[("D6: Phản hồi & Đánh giá (Review)")]
+    D7[("D7: Khảo sát & Thông báo (Survey, Question, Response, Notification)")]
 
-    %% Flows for P1: Admin Account & RBAC
-    ADMIN -->|"Thêm, xóa, khóa, phân quyền account"| P1
-    P1 -->|"Danh sách & trạng thái tài khoản"| ADMIN
+    %% Flows for P1: Admin Account, RBAC & Realtime Lock
+    ADMIN -->|"Thêm, xóa, khóa/mở khóa, phân quyền account"| P1
+    P1 -->|"Danh sách & trạng thái tài khoản hệ thống"| ADMIN
+    P1 -->|"Sự kiện khóa tài khoản (account:locked) & thu hồi phiên tức thì"| CLIENT
     P1 <-->|"Đọc / Ghi tài khoản Admin & CRM"| D1
-    P1 <-->|"Kiểm tra email & trạng thái KH"| D2
+    P1 <-->|"Cập nhật trạng thái active/inactive"| D2
 
     %% Flows for P2: Customer Management & Profile
-    CLIENT -->|"Đăng ký, đăng nhập, sửa thông tin (ngày sinh, giới tính)"| P2
-    CRM -->|"Thêm mới, xóa, khóa tài khoản khách hàng"| P2
-    P2 -->|"Hồ sơ cá nhân & JWT Token"| CLIENT
+    CLIENT -->|"Đăng ký, đăng nhập, sửa hồ sơ (ngày sinh, giới tính, địa chỉ)"| P2
+    CRM -->|"Thêm mới, xóa mềm, khóa/mở khóa tài khoản KH"| P2
+    P2 -->|"Hồ sơ cá nhân, sổ địa chỉ & JWT Token"| CLIENT
     P2 -->|"Danh sách & trạng thái khách hàng"| CRM
-    P2 <-->|"Lưu & truy vấn hồ sơ khách hàng"| D2
+    P2 <-->|"Lưu & truy vấn hồ sơ, sổ địa chỉ KH"| D2
 
-    %% Flows for P3: Catalog, Favorites & Orders
-    CRM -->|"Thêm/sửa/xóa danh mục, sản phẩm, màu, size, voucher"| P3
-    CLIENT -->|"Tìm kiếm SP, thả tim yêu thích, đặt hàng"| P3
-    P3 -->|"Thông tin SP, giỏ hàng, hóa đơn"| CLIENT
-    P3 <-->|"Cập nhật sản phẩm & tồn kho"| D3
-    P3 <-->|"Lưu lượt thả tim yêu thích, giỏ hàng, voucher"| D4
-    P3 <-->|"Lưu đơn hàng & chi tiết mua sắm"| D5
+    %% Flows for P3: Catalog, Favorites, Buy Now, Orders & Return/Refund (7 days)
+    CRM -->|"Quản lý danh mục, SP, màu/size, voucher & duyệt/xử lý đơn hàng"| P3
+    CLIENT -->|"Thả tim SP, thêm giỏ hàng, Mua ngay, TT trả sau/thẻ, hủy đơn & trả hàng (trong 7 ngày)"| P3
+    P3 -->|"Thông tin SP, xác nhận đơn, trạng thái trả hàng (returned) & hoàn tiền (refunded)"| CLIENT
+    P3 -->|"Danh sách đơn hàng, trạng thái xử lý & trả hàng"| CRM
+    P3 <-->|"Cập nhật sản phẩm & trừ/hoàn tồn kho"| D3
+    P3 <-->|"Lưu lượt yêu thích, giỏ hàng, trừ/hoàn lượt dùng voucher"| D4
+    P3 <-->|"Lưu đơn hàng, lịch sử trạng thái, thanh toán (paid) & hoàn tiền (refunded)"| D5
 
     %% Flows for P4: Product Feedback / Reviews
-    CLIENT -->|"Gửi đánh giá sao & phản hồi về sản phẩm"| P4
-    CRM -->|"Tiếp nhận & gửi câu trả lời (adminReply)"| P4
-    P4 -->|"Hiển thị đánh giá & phản hồi của shop"| CLIENT
+    CLIENT -->|"Gửi đánh giá sao (1-5) & nhận xét sản phẩm"| P4
+    CRM -->|"Tiếp nhận & gửi phản hồi chính thức (adminReply)"| P4
+    P4 -->|"Hiển thị đánh giá & câu trả lời của shop"| CLIENT
     P4 -->|"Danh sách phản hồi khách hàng"| CRM
     D3 -->|"Thông tin sản phẩm được đánh giá"| P4
-    D5 -->|"Xác thực mặt hàng đã mua"| P4
-    P4 <-->|"Lưu đánh giá & câu trả lời CSKH"| D6
+    D5 -->|"Đối chiếu lịch sử mua hàng"| P4
+    P4 <-->|"Lưu đánh giá & phản hồi CSKH"| D6
 
     %% Flows for P5: Surveys & Survey Analytics
-    CRM -->|"Tạo bảng khảo sát & phát hành tới tài khoản KH"| P5
-    P5 -->|"Gửi thông báo & phiếu khảo sát"| CLIENT
-    CLIENT -->|"Thực hiện & nộp câu trả lời khảo sát"| P5
-    P5 -->|"Báo cáo thống kê kết quả khảo sát"| CRM
-    D2 -->|"Danh sách khách hàng nhận khảo sát"| P5
-    P5 <-->|"Lưu chiến dịch, câu hỏi, phiếu trả lời & thông báo"| D7
+    CRM -->|"Tạo bảng khảo sát, chọn đối tượng KH & phát hành"| P5
+    P5 -->|"Thông báo & phiếu khảo sát trực tuyến"| CLIENT
+    CLIENT -->|"Mở phiếu & nộp câu trả lời khảo sát"| P5
+    P5 -->|"Báo cáo thống kê tiến độ & kết quả khảo sát"| CRM
+    D2 -->|"Danh sách khách hàng mục tiêu"| P5
+    P5 <-->|"Lưu chiến dịch, câu hỏi, câu trả lời & thông báo"| D7
 
-    %% Flows for P6: Customer Demographics & Preferences Report
-    CRM -->|"Yêu cầu xem báo cáo KH, độ tuổi, sở thích"| P6
+    %% Flows for P6: Revenue, Refund Reconciliation & Customer Analytics
+    CRM -->|"Yêu cầu báo cáo độ tuổi, giới tính & sở thích KH"| P6
+    ADMIN -->|"Yêu cầu thống kê GMV, Thực thu, Tiền hoàn trả & Đối soát"| P6
     D2 -->|"Ngày sinh (dateOfBirth) & Giới tính (gender)"| P6
     D4 -->|"Dữ liệu thả tim yêu thích & giỏ hàng"| P6
-    D5 -->|"Lịch sử sản phẩm/danh mục đã mua"| P6
+    D5 -->|"Dữ liệu GMV, tiền đã thu (paidAt) & tiền hoàn trả (refundedAt)"| P6
     D6 -->|"Điểm đánh giá mức độ hài lòng"| P6
     P6 -->|"Báo cáo tỷ lệ độ tuổi, giới tính & ma trận sở thích"| CRM
+    P6 -->|"Dashboard Doanh thu, Tổng tiền hoàn trả, Thực thu ròng & Bảng đối soát"| ADMIN
 ```
 
-##### Bảng Đặc tả 6 Tiến trình và 7 Kho dữ liệu trên DFD Mức Đỉnh
+##### Bảng Mô tả Chi tiết Luồng DFD Mức Đỉnh (Theo mẫu 5 cột chuẩn)
 
-| Mã | Tên Tiến trình / Kho dữ liệu | Đầu vào (Input) | Đầu ra (Output) | Tác nhân / Bảng CSDL liên quan |
-| :-: | :--- | :--- | :--- | :--- |
-| **1.0** | Quản trị Tài khoản & Phân quyền | Lệnh thêm, xóa, khóa, phân quyền từ Admin Server | Danh sách tài khoản, token xác thực, quyền truy cập | `Admin`, `Client` |
-| **2.0** | Quản lý Hồ sơ Khách hàng | Thông tin đăng ký/cập nhật từ KH; lệnh thêm/xóa/khóa KH từ CRM Manager | Hồ sơ khách hàng đã chuẩn hóa (gồm `dateOfBirth`, `gender`) | `Client`, `ClientAddress` |
-| **3.0** | Quản lý Sản phẩm, Yêu thích & Đơn hàng | Thông tin SP/màu/size từ CRM Manager; lượt thả tim, giỏ hàng, đơn đặt hàng từ KH | Dữ liệu danh mục sản phẩm, trạng thái đơn hàng, lượt yêu thích | `Category`, `Product`, `ProductColor`, `ProductVariant`, `ProductFavorite`, `Cart`, `Order` |
-| **4.0** | Tiếp nhận & Xử lý Phản hồi Sản phẩm | Điểm sao (`1-5`) và nội dung nhận xét từ KH; nội dung phản hồi (`adminReply`) từ CRM Manager | Danh sách phản hồi sản phẩm công khai kèm câu trả lời của doanh nghiệp | `Review` |
-| **5.0** | Tạo, Gửi & Thống kê Khảo sát CRM | Cấu hình bảng khảo sát & câu hỏi từ CRM Manager; bài làm khảo sát từ KH | Thông báo khảo sát tới tài khoản KH; biểu đồ thống kê kết quả khảo sát | `Survey`, `SurveyQuestion`, `SurveyOption`, `SurveyResponse`, `SurveyAnswer`, `Notification` |
-| **6.0** | Tổng hợp Báo cáo Độ tuổi & Sở thích | Đọc `dateOfBirth`, `gender` từ **D2**; lượt thả tim từ **D4**; lịch sử mua hàng từ **D5** | Báo cáo nhân khẩu học (6 nhóm tuổi, giới tính) & Ma trận sở thích danh mục theo độ tuổi | Báo cáo trực quan gửi tới **Người Quản lý CRM** |
+| Tiến trình | Nguồn dữ liệu | Luồng dữ liệu vào (Input) | Luồng dữ liệu ra (Output) | Đích dữ liệu |
+| :--- | :--- | :--- | :--- | :--- |
+| **1.0 Quản trị Tài khoản, Phân quyền & Khóa phiên tức thì** | - Admin Server<br>- Kho `D1`, `D2` | - Lệnh thêm, xóa, khóa/mở khóa, cấp quyền (`roleCode`)<br>- Thông tin tài khoản hiện có từ `D1`, `D2` | - Cập nhật bản ghi tài khoản & trạng thái `active`/`inactive`<br>- Danh sách & trạng thái tài khoản hệ thống<br>- Sự kiện `account:locked` đẩy xuất tức thì | - Kho `D1: ADMIN`, Kho `D2: CLIENT`<br>- Admin Server<br>- Khách hàng |
+| **2.0 Quản lý Hồ sơ & Địa chỉ Khách hàng** | - Khách hàng<br>- Người quản lý CRM<br>- Kho `D2` | - Đăng ký, đăng nhập, cập nhật hồ sơ (`dateOfBirth`, `gender`, SĐT, địa chỉ)<br>- Lệnh thêm mới, xóa mềm, khóa/mở khóa KH từ CRM | - Lưu hồ sơ khách hàng & sổ địa chỉ chuẩn hóa<br>- Thông báo cập nhật, thông tin hồ sơ & JWT Token<br>- Danh sách & trạng thái khách hàng | - Kho `D2: CLIENT, CLIENT_ADDRESS`<br>- Khách hàng<br>- Người quản lý CRM |
+| **3.0 Quản lý Sản phẩm, Mua ngay, Đơn hàng & Trả hàng/Hoàn tiền** | - Người quản lý CRM<br>- Khách hàng<br>- Kho `D3`, `D4`, `D5` | - Quản lý danh mục, sản phẩm, màu/size, voucher & duyệt đơn<br>- Thả tim SP, thêm giỏ hàng, **Mua ngay**, thanh toán (`cod`, `credit_card`, `pay_later`), hủy đơn & **Trả hàng trong 7 ngày** | - Cập nhật sản phẩm, trừ/hoàn tồn kho (`D3`)<br>- Lưu lượt yêu thích, giỏ hàng, trừ/hoàn lượt dùng voucher (`D4`)<br>- Lưu đơn hàng, lịch sử trạng thái (`OrderStatusHistory`), thanh toán (`paidAt`) & hoàn tiền (`refundedAt`) (`D5`)<br>- Xác nhận đơn hàng, trạng thái trả hàng (`returned`) & hoàn tiền (`refunded`) | - Kho `D3: PRODUCT, VARIANT`<br>- Kho `D4: FAVORITE, CART, VOUCHER`<br>- Kho `D5: ORDER, PAYMENT, HISTORY`<br>- Khách hàng & Người quản lý CRM |
+| **4.0 Tiếp nhận & Phản hồi Đánh giá Sản phẩm** | - Khách hàng<br>- Người quản lý CRM<br>- Kho `D3`, `D5`, `D6` | - Điểm đánh giá (`1–5 sao`) và nhận xét sản phẩm từ KH<br>- Nội dung phản hồi chính thức (`adminReply`) từ CRM<br>- Thông tin SP (`D3`) & đối chiếu đơn hàng đã mua (`D5`) | - Lưu đánh giá của KH và phản hồi của CRM<br>- Hiển thị danh sách đánh giá công khai & câu trả lời của shop<br>- Thông báo phản hồi đánh giá tới KH | - Kho `D6: REVIEW`, Kho `D7: NOTIFICATION`<br>- Khách hàng<br>- Người quản lý CRM |
+| **5.0 Tạo, Phát hành & Thống kê Khảo sát CRM** | - Người quản lý CRM<br>- Khách hàng<br>- Kho `D2`, `D7` | - Thiết lập chiến dịch khảo sát, bộ câu hỏi & phát hành từ CRM<br>- Danh sách khách hàng mục tiêu từ `D2`<br>- Mở phiếu & nộp câu trả lời khảo sát từ KH | - Lưu chiến dịch, câu hỏi, phương án chọn, phiếu trả lời & thông báo<br>- Gửi thông báo & biểu mẫu khảo sát trực tuyến<br>- Báo cáo tiến độ & thống kê kết quả khảo sát | - Kho `D7: SURVEY, QUESTION, OPTION, RESPONSE, ANSWER, NOTIFICATION`<br>- Khách hàng<br>- Người quản lý CRM |
+| **6.0 Thống kê Doanh thu, Hoàn tiền, Đối soát & Phân tích KH** | - Người quản lý CRM<br>- Admin Server<br>- Kho `D2`, `D4`, `D5`, `D6` | - Yêu cầu xem báo cáo từ CRM & Admin Server<br>- Ngày sinh (`dateOfBirth`), giới tính (`gender`) từ `D2`<br>- Lượt thả tim yêu thích & giỏ hàng từ `D4`<br>- Đơn hoàn tất/trả hàng, tiền thu (`paidAt`) & hoàn tiền (`refundedAt`) từ `D5`<br>- Điểm đánh giá hài lòng từ `D6` | - Báo cáo khách hàng, tỷ lệ độ tuổi, giới tính & ma trận sở thích sản phẩm<br>- Dashboard GMV, Thực thu ròng, Tổng tiền hoàn trả (`totalRefundedAmount`) & Bảng đối soát giao dịch | - Người quản lý CRM<br>- Admin Server |
+
+---
+
+#### 2.5. Bộ 11 Sơ đồ Trạng thái Hệ thống — State Machine Diagrams (Toàn bộ hệ thống)
+
+##### Sơ đồ 0: Trạng thái Tổng quan Phiên làm việc & Điều hướng Phân quyền 3 Cổng
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> GuestSession : Truy cập hệ thống
+
+    GuestSession --> Authenticated : Đăng nhập hợp lệ (JWT + Socket.IO)
+    GuestSession --> GuestSession : Xem sản phẩm, lọc danh mục, đăng ký
+
+    state Authenticated {
+        direction TB
+        [*] --> RoleRouting : Kiểm tra roleCode & Cổng truy cập
+        RoleRouting --> AdminServerPortal : SUPER_ADMIN (Port 5175)
+        RoleRouting --> CrmManagerPortal : CRM_MANAGER (Port 5174)
+        RoleRouting --> ClientPortal : CLIENT (Port 5173)
+    }
+
+    Authenticated --> SessionRevoked : Bị khóa TK (inactive) / Hết hạn JWT (401)
+    SessionRevoked --> GuestSession : Đẩy về trang Đăng nhập
+    Authenticated --> GuestSession : Đăng xuất
+```
+
+##### Sơ đồ 1: Trạng thái Tài khoản Quản trị & Khách hàng (`Admin` & `Client` – `UserStatus`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Active : Đăng ký / Tạo mới (status = active, deletedAt = null)
+    Active --> Inactive : Admin / CRM khóa tài khoản (status = inactive, thu hồi phiên Socket.IO)
+    Inactive --> Active : Admin / CRM mở khóa tài khoản (status = active)
+    Active --> SoftDeleted : Xóa mềm (deletedAt = now(), status = inactive)
+    Inactive --> SoftDeleted : Xóa mềm (deletedAt = now())
+    SoftDeleted --> [*]
+```
+
+##### Sơ đồ 2: Trạng thái Sản phẩm & Biến thể Tồn kho (`ProductStatus` & `ProductVariant.stock`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft : Tạo SP nháp (status = draft)
+    Draft --> ActiveInStock : Mở bán (status = active, stock > 0)
+    ActiveInStock --> OutOfStock : Đặt mua hết (status = active, stock = 0)
+    OutOfStock --> ActiveInStock : Nhập thêm kho / Hoàn kho từ đơn hủy & trả hàng (stock > 0)
+    ActiveInStock --> Inactive : Tạm ẩn / Ngừng kinh doanh (status = inactive)
+    Inactive --> ActiveInStock : Mở bán lại (status = active, stock > 0)
+    Draft --> SoftDeleted : Xóa mềm (deletedAt = now())
+    ActiveInStock --> SoftDeleted : Xóa mềm (deletedAt = now())
+    Inactive --> SoftDeleted : Xóa mềm (deletedAt = now())
+    SoftDeleted --> [*]
+```
+
+##### Sơ đồ 3: Trạng thái Giỏ hàng & Phiên Mua sắm (`Cart` & `CartItem`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> EmptyCart : Khởi tạo giỏ hàng 1-1 cho Client
+    EmptyCart --> HasItems : Thêm biến thể SP vào giỏ (CartItem >= 1)
+    HasItems --> EmptyCart : Xóa toàn bộ SP trong giỏ
+    HasItems --> CheckoutPending : Chọn SP & nhấn Thanh toán (kiểm tra tồn kho, áp Voucher)
+    CheckoutPending --> HasItems : Quay lại giỏ hàng
+    CheckoutPending --> OrderCreated : Xác nhận Đặt hàng (Sinh Order + OrderDetail)
+    OrderCreated --> EmptyCart : Đã mua hết SP trong giỏ
+    OrderCreated --> HasItems : Còn SP chưa chọn mua trong giỏ
+```
+
+##### Sơ đồ 4: Trạng thái Chiến dịch Mã giảm giá & Lượt áp dụng (`VoucherStatus` & `VoucherDetail`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft : Tạo nháp (status = draft)
+    Draft --> Active : Kích hoạt (status = active, usedQuantity < quantity)
+    Active --> Active : Áp mã tạo VoucherDetail (+1) / Hủy đơn hoàn lượt reversedAt (-1)
+    Active --> Inactive : Tạm khóa mã (status = inactive)
+    Inactive --> Active : Mở lại mã (status = active)
+    Active --> Expired : Quá hạn endDate / Hết lượt (status = expired)
+    Inactive --> SoftDeleted : Xóa mềm (deletedAt = now())
+    Expired --> SoftDeleted : Xóa mềm (deletedAt = now())
+    SoftDeleted --> [*]
+```
+
+##### Sơ đồ 5: Trạng thái Đơn đặt hàng (`OrderStatus` & `OrderStatusHistory`)
+```mermaid
+stateDiagram-v2
+    direction TB
+    [*] --> Pending : Đặt hàng thành công (status = pending, trừ tồn kho)
+    Pending --> Confirmed : Quản lý CRM duyệt đơn (status = confirmed)
+    Pending --> Cancelled : KH / CRM hủy đơn (status = cancelled, +hoàn kho, +hoàn Voucher)
+    Confirmed --> Processing : Đóng gói xuất kho (status = processing)
+    Confirmed --> Cancelled : Hủy trước khi xuất kho (status = cancelled, +hoàn kho)
+    Processing --> Shipping : Bàn giao vận chuyển (status = shipping)
+    Shipping --> Completed : Giao thành công (status = completed, mở Đánh giá & Khảo sát)
+    Completed --> Returned : Trả hàng trong 7 ngày (status = returned, +hoàn kho, hoàn tiền)
+    Cancelled --> [*]
+    Completed --> [*]
+    Returned --> [*]
+```
+
+##### Sơ đồ 6: Trạng thái Giao dịch Thanh toán & Đối soát Hoàn tiền (`PaymentStatus`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Pending : Khởi tạo giao dịch theo Order (status = pending)
+    Pending --> Paid : Thu tiền thành công (status = paid, paidAt = now())
+    Pending --> Failed : Lỗi cổng thanh toán (status = failed, failedAt = now())
+    Failed --> Pending : Thanh toán lại
+    Pending --> Cancelled : Hủy đơn khi chưa thu tiền (status = cancelled)
+    Failed --> Cancelled : Hủy đơn do không thanh toán (status = cancelled)
+    Paid --> Refunded : Hủy đơn đã trả / Trả hàng (status = refunded, refundedAt = now())
+    Cancelled --> [*]
+    Paid --> [*]
+    Refunded --> [*]
+```
+
+##### Sơ đồ 7: Trạng thái Đánh giá Sản phẩm & Phản hồi CSKH (`Review`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> WaitingReply : KH gửi đánh giá 1-5 sao (Order = completed, adminReply = null)
+    WaitingReply --> Replied : Quản lý CRM gửi câu trả lời (adminReply != null, repliedAt = now())
+    Replied --> Replied : Quản lý CRM chỉnh sửa nội dung phản hồi
+    WaitingReply --> SoftDeleted : Xóa mềm đánh giá vi phạm (deletedAt = now())
+    Replied --> SoftDeleted : Xóa mềm (deletedAt = now())
+    SoftDeleted --> [*]
+```
+
+##### Sơ đồ 8: Trạng thái Chiến dịch Khảo sát Khách hàng (`SurveyStatus`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft : Thiết kế câu hỏi khảo sát nháp (status = draft)
+    Draft --> Active : Phát hành & gửi thông báo Socket.IO (status = active)
+    Active --> Closed : Đóng khảo sát / Hết hạn endDate (status = closed)
+    Draft --> SoftDeleted : Xóa mềm (deletedAt = now())
+    Active --> SoftDeleted : Xóa mềm (deletedAt = now())
+    Closed --> SoftDeleted : Xóa mềm (deletedAt = now())
+    SoftDeleted --> [*]
+```
+
+##### Sơ đồ 9: Trạng thái Phiếu trả lời Khảo sát của Khách hàng (`SurveyResponseStatus`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Pending : Hệ thống phân phối phiếu (status = pending, sinh deliveryKey)
+    Pending --> Opened : KH nhấn mở phiếu (openedAt = now())
+    Opened --> Submitted : KH nộp bài khảo sát (status = submitted, lưu SurveyAnswer)
+    Opened --> Skipped : KH nhấn Bỏ qua (status = skipped, skippedAt = now())
+    Pending --> Skipped : KH bỏ qua trực tiếp (status = skipped)
+    Pending --> Expired : Quá hạn expiresAt / Khảo sát đóng (status = expired)
+    Opened --> Expired : Quá hạn khi chưa nộp (status = expired)
+    Submitted --> [*]
+    Skipped --> [*]
+    Expired --> [*]
+```
+
+##### Sơ đồ 10: Trạng thái Thông báo Thời gian thực (`Notification` – Socket.IO)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Unread : Phát sinh sự kiện & đẩy qua Socket.IO (isRead = false, readAt = null)
+    Unread --> Read : KH nhấn xem / Đánh dấu đã đọc (isRead = true, readAt = now())
+    Unread --> Expired : Quá hạn hiển thị (now() > expiresAt)
+    Read --> Expired : Quá hạn lưu trữ (now() > expiresAt)
+    Read --> [*]
+    Expired --> [*]
+```
 
 ---
 
@@ -297,7 +470,7 @@ erDiagram
     SurveyResponse ||--o| Notification : "gắn thông báo"
 ```
 
-##### C. Đặc tả Chi tiết các Bảng và Thuộc tính trong Cơ sở dữ liệu (19 Bảng)
+##### C. Đặc tả Chi tiết các Bảng và Thuộc tính trong Cơ sở dữ liệu (23 Bảng)
 
 ###### Bảng 1: `Admin` — Tài khoản Quản trị Hệ thống (`SUPER_ADMIN`) & Người Quản lý CRM (`CRM_MANAGER`) *(Kho D1)*
 | STT | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả ý nghĩa |
@@ -338,13 +511,17 @@ erDiagram
 | :-: | :--- | :--- | :--- | :--- |
 | 1 | `id` | `UUID` | `PK, DEFAULT uuid()` | Mã địa chỉ nhận hàng |
 | 2 | `clientId` | `UUID` | `FK -> Client(id)` | Mã khách hàng sở hữu địa chỉ |
-| 3 | `receiverName` | `VARCHAR(255)` | `NOT NULL` | Họ tên người nhận hàng |
-| 4 | `phone` | `VARCHAR(50)` | `NOT NULL` | Số điện thoại người nhận |
-| 5 | `addressLine` | `VARCHAR(500)` | `NOT NULL` | Số nhà, tên đường chi tiết |
-| 6 | `ward` | `VARCHAR(255)` | `NULL` | Phường / Xã |
-| 7 | `district` | `VARCHAR(255)` | `NULL` | Quận / Huyện |
-| 8 | `province` | `VARCHAR(255)` | `NULL` | Tỉnh / Thành phố |
-| 9 | `isDefault` | `BOOLEAN` | `DEFAULT false` | Đánh dấu địa chỉ mặc định |
+| 3 | `label` | `VARCHAR(100)` | `NULL` | Nhãn địa chỉ (VD: *Nhà riêng, Văn phòng*) |
+| 4 | `receiverName` | `VARCHAR(255)` | `NOT NULL` | Họ tên người nhận hàng |
+| 5 | `phone` | `VARCHAR(50)` | `NOT NULL` | Số điện thoại người nhận |
+| 6 | `addressLine` | `VARCHAR(500)` | `NOT NULL` | Số nhà, tên đường chi tiết |
+| 7 | `ward` | `VARCHAR(255)` | `NULL` | Phường / Xã |
+| 8 | `district` | `VARCHAR(255)` | `NULL` | Quận / Huyện |
+| 9 | `province` | `VARCHAR(255)` | `NULL` | Tỉnh / Thành phố |
+| 10 | `isDefault` | `BOOLEAN` | `DEFAULT false` | Đánh dấu địa chỉ mặc định |
+| 11 | `createdAt` | `TIMESTAMP` | `DEFAULT now()` | Thời điểm tạo địa chỉ |
+| 12 | `updatedAt` | `TIMESTAMP` | `NOT NULL` | Thời điểm cập nhật gần nhất |
+| 13 | `deletedAt` | `TIMESTAMP` | `NULL` | Thời điểm xóa mềm |
 
 ###### Bảng 4: `Category` — Danh mục Sản phẩm Thời trang *(Kho D3)*
 | STT | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả ý nghĩa |
@@ -409,10 +586,10 @@ erDiagram
 ###### Bảng 13, 14, 15, 16: `Order`, `OrderDetail`, `Payment`, `OrderStatusHistory` *(Kho D5)*
 | Bảng | Thuộc tính chính | Kiểu dữ liệu | Ràng buộc | Mô tả ý nghĩa |
 | :--- | :--- | :--- | :--- | :--- |
-| `Order` | `id`, `orderCode`, `clientId`, `subtotalAmount`, `discountAmount`, `shippingFee`, `totalAmount`, `status`, `receiverName`, `receiverPhone`, `shippingAddress`, `createdAt` | `UUID`, `VARCHAR`, `DECIMAL(12,2)`, `OrderStatus` | `PK`, `orderCode UNIQUE`, `FK -> Client(id)` | Đơn đặt hàng của khách hàng |
+| `Order` | `id`, `orderCode`, `clientId`, `subtotalAmount`, `discountAmount`, `shippingFee`, `totalAmount`, `status`, `receiverName`, `receiverPhone`, `shippingAddress`, `notes`, `cancelledAt`, `createdAt`, `updatedAt`, `deletedAt` | `UUID`, `VARCHAR`, `DECIMAL(12,2)`, `OrderStatus`, `TIMESTAMP` | `PK`, `orderCode UNIQUE`, `FK -> Client(id)` | Đơn đặt hàng của khách hàng (`pending`, `confirmed`, `packing`, `shipping`, `completed`, `cancelled`, `returned`) |
 | `OrderDetail` | `id`, `orderId`, `productVariantId`, `quantity`, `price`, `productName`, `colorName`, `sizeName` | `UUID`, `INT`, `DECIMAL(12,2)`, `VARCHAR` | `PK`, `FK -> Order(id)`, `FK -> ProductVariant(id)` | Chi tiết từng sản phẩm (màu/size/số lượng) khách đã mua (**dữ liệu phân tích sở thích mua sắm CRM**) |
-| `Payment` | `id`, `orderId`, `method`, `amount`, `status`, `transactionCode`, `paidAt` | `UUID`, `PaymentMethod`, `DECIMAL(12,2)`, `PaymentStatus` | `PK`, `orderId UNIQUE FK -> Order(id)` | Giao dịch thanh toán (`cod`, `vnpay`, `momo`, `zalopay`, `bank_transfer`) |
-| `OrderStatusHistory` | `id`, `orderId`, `adminId`, `clientId`, `fromStatus`, `toStatus`, `note`, `createdAt` | `UUID`, `OrderStatus`, `VARCHAR(1000)` | `PK`, `FK -> Order, Admin, Client` | Nhật ký chuyển trạng thái đơn hàng |
+| `Payment` | `id`, `orderId`, `method`, `amount`, `status`, `transactionCode`, `gateway`, `gatewayResponse`, `paidAt`, `failedAt`, `refundedAt`, `createdAt`, `updatedAt` | `UUID`, `PaymentMethod`, `DECIMAL(12,2)`, `PaymentStatus`, `JSONB`, `TIMESTAMP` | `PK`, `orderId UNIQUE FK -> Order(id)` | Giao dịch thanh toán (`cod`, `vnpay`, `momo`, `zalopay`, `bank_transfer`, `credit_card`, `pay_later`) và trạng thái (`pending`, `paid`, `failed`, `cancelled`, `refunded`) |
+| `OrderStatusHistory` | `id`, `orderId`, `adminId`, `clientId`, `fromStatus`, `toStatus`, `note`, `createdAt` | `UUID`, `OrderStatus`, `VARCHAR(1000)` | `PK`, `FK -> Order, Admin, Client` | Nhật ký chuyển trạng thái đơn hàng (kể cả hủy đơn và trả hàng/hoàn tiền) |
 
 ###### Bảng 17: `Review` — Tiếp nhận & Phản hồi Đánh giá Sản phẩm của Khách hàng *(Kho D6)*
 | STT | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả ý nghĩa |
@@ -430,7 +607,7 @@ erDiagram
 ###### Bảng 18, 19, 20, 21, 22, 23: Cụm Bảng Khảo sát Khách hàng & Thông báo CRM *(Kho D7)*
 | Bảng | Thuộc tính đầy đủ | Kiểu dữ liệu & Ràng buộc | Mô tả ý nghĩa trong nghiệp vụ CRM |
 | :--- | :--- | :--- | :--- |
-| **`Survey`** | `id` (PK), `adminId` (FK), `title`, `description`, `imageUrl`, `scope`, `audienceType`, `triggerType`, `status` (`draft`/`active`/`closed`), `startDate`, `endDate`, `createdAt` | `UUID`, `VARCHAR(255)`, `SurveyStatus` | Lưu chiến dịch khảo sát độ hài lòng hoặc thăm dò ra mắt sản phẩm mới |
+| **`Survey`** | `id` (PK), `adminId` (FK), `title`, `description`, `imageUrl`, `scope`, `audienceType`, `triggerType`, `recipientIds`, `status` (`draft`/`active`/`closed`), `startDate`, `endDate`, `createdAt`, `updatedAt`, `deletedAt` | `UUID`, `VARCHAR(255)`, `UUID[]`, `SurveyStatus` | Lưu chiến dịch khảo sát độ hài lòng hoặc thăm dò ra mắt sản phẩm mới |
 | **`SurveyQuestion`** | `id` (PK), `surveyId` (FK -> `Survey`), `question`, `type` (`rating`, `single_choice`, `multiple_choice`, `text`), `required`, `position` | `UUID`, `TEXT`, `SurveyQuestionType`, `BOOLEAN`, `INT` | Lưu danh sách các câu hỏi trong bảng khảo sát |
 | **`SurveyOption`** | `id` (PK), `questionId` (FK -> `SurveyQuestion`), `content`, `position` | `UUID`, `VARCHAR(500)`, `INT` | Lưu các phương án lựa chọn của câu hỏi trắc nghiệm |
 | **`SurveyResponse`** | `id` (PK), `surveyId` (FK), `clientId` (FK -> `Client`), `orderId` (FK), `deliveryKey` (UNIQUE), `status` (`pending`, `submitted`, `skipped`), `notifiedAt`, `openedAt`, `submittedAt` | `UUID`, `SurveyResponseStatus`, `TIMESTAMP` | Lưu phiếu khảo sát đã gửi tới từng tài khoản khách hàng và trạng thái thực hiện |
@@ -527,17 +704,61 @@ Hệ thống được thiết kế thành **3 Cổng Giao diện tách biệt ho
 
 ---
 
-### 4. Phương án Sao lưu và Phục hồi CSDL (Mục II.1 — 10 điểm)
-Hệ thống trang bị bộ công cụ sao lưu và phục hồi tự động bằng `pg_dump` / `pg_restore` tại thư mục `database/`:
-- **Sao lưu định kỳ (Backup):**
-  ```powershell
-  .\database\backup.ps1 -DbName htttdn_crm -User postgres
-  ```
-  Sinh file nén chuẩn PostgreSQL Custom Format tại `database/backup/htttdn_crm_YYYYMMDD_HHmmss.dump`.
-- **Phục hồi khi xảy ra sự cố (Restore):**
-  ```powershell
-  .\database\restore.ps1 -File .\database\backup\htttdn_crm_YYYYMMDD_HHmmss.dump
-  ```
+### 4. Cài đặt và Bảo trì HTTT, Hướng dẫn Sử dụng Hệ thống (Mục I.4 — 5.0 điểm)
+
+#### 4.1. Phương án Cài đặt, Chuyển đổi và Bảo trì cho Hệ thống vừa được Thiết kế Xây dựng (2.5đ)
+- **Kiến trúc cài đặt đa cổng (4-Tier Multi-Portal Architecture):**
+  1. **Tầng CSDL (`localhost:5433/htttdn_crm`):** PostgreSQL 18 + Prisma Migrate (23 bảng nghiệp vụ, 16 kiểu `ENUM`, 562 bản ghi thực tế).
+  2. **Tầng Backend & Realtime (`http://localhost:3000/api`):** Node.js 20 + NestJS + Socket.IO Gateway + Prisma ORM.
+  3. **3 Cổng Giao diện Độc lập:**
+     - **Cổng Admin Server (`http://localhost:5175/login/admin`):** Dành riêng cho `SUPER_ADMIN` (Mục II.2).
+     - **Cổng Người Quản lý CRM (`http://localhost:5174/login/crm`):** Dành riêng cho `CRM_MANAGER` (Mục III.4.1).
+     - **Cổng Khách hàng (`http://localhost:5173/login`):** Dành cho `CLIENT` (Mục III.4.3).
+- **Phương án chuyển đổi hệ thống (Parallel & Phased Conversion — 4 giai đoạn):**
+  - *Giai đoạn 1 (Tuần 1 — Chuẩn bị hạ tầng & di trú dữ liệu):* Cài đặt PostgreSQL 18, chạy `npx prisma migrate deploy` khởi tạo 23 bảng và nạp dữ liệu chuẩn hóa từ file Excel cũ vào các bảng `Client`, `ClientAddress`, `Category`, `Product`, `ProductColor`, `ProductVariant`.
+  - *Giai đoạn 2 (Tuần 2–3 — Vận hành song song):* Chạy đồng thời hệ thống MIVA CRM trên 3 cổng cùng quy trình cũ để đối soát doanh thu, hoàn tiền, tồn kho màu/size và luồng thông báo khảo sát.
+  - *Giai đoạn 3 (Đầu Tuần 4 — Đào tạo nhân sự theo phân quyền):* Tập huấn IT Admin dùng cổng `:5175` + script `backup.ps1`/`restore.ps1`; tập huấn đội ngũ CRM/CSKH dùng cổng `:5174`.
+  - *Giai đoạn 4 (Từ Tuần 4 — Chuyển giao chính thức / Cut-over):* Ngưng hẳn việc ghi chép trên Excel rời rạc, chuyển 100% sang hệ thống MIVA CRM và kích hoạt lịch sao lưu tự động `02:00` sáng hàng ngày.
+- **Kế hoạch bảo trì định kỳ (4 loại hình chuẩn IEEE):**
+  1. *Bảo trì Hiệu chỉnh (Corrective):* Giám sát log qua `LoggerInterceptor` & `CatchEverythingFilter`, xử lý lỗi phát sinh trong 2–4 giờ.
+  2. *Bảo trì Thích nghi (Adaptive):* Cập nhật tích hợp thanh toán, vận chuyển và nâng cấp bảo mật Node.js / PostgreSQL.
+  3. *Bảo trì Hoàn thiện (Perfective):* Tối ưu chỉ mục CSDL (`Index`) và bổ sung mẫu kịch bản khảo sát thời trang mới theo mùa.
+  4. *Bảo trì Phòng ngừa (Preventive):* Sao lưu tự động `02:00` sáng (`.\database\backup.ps1`), diễn tập phục hồi (`.\database\restore.ps1 -Latest`) hàng tháng và rà soát khóa tài khoản vi phạm.
+
+#### 4.2. Tài liệu Hướng dẫn Sử dụng Hệ thống theo 3 Nhóm Tác nhân (2.5đ)
+
+| Nhóm Tác nhân | Cổng Đăng nhập | Tài khoản Demo | Hướng dẫn Thao tác Các Chức năng Chính |
+| :--- | :--- | :--- | :--- |
+| **1. Admin Server** (`SUPER_ADMIN` — Mục II.2) | `http://localhost:5175/login/admin` | `admin@miva.vn` / `admin123` | - **Quản lý tài khoản (`/system/accounts`):** Nhấn `"+ Thêm tài khoản mới"`, chọn vai trò (`SUPER_ADMIN`, `CRM_MANAGER`, `CLIENT`); nhấn `"Phân quyền"` để đổi `roleCode`; nhấn `"Khóa/Mở khóa"` (`active` ↔ `inactive`, đẩy sự kiện `account:locked` tức thì) hoặc `"Xóa"` (`deletedAt`).<br>- **Doanh thu & Đối soát (`/system/revenue`):** Xem GMV, Thực thu ròng, Tổng tiền hoàn trả (`totalRefundedAmount`) và bảng đối soát. |
+| **2. Người Quản lý CRM** (`CRM_MANAGER` — Mục III.4.1) | `http://localhost:5174/login/crm` | `crm@miva.vn` / `admin123` | - **Quản lý khách hàng (`/users`):** Thêm khách hàng mới (kèm `dateOfBirth`, `gender`), Khóa tài khoản KH (`inactive`) và Xóa mềm KH.<br>- **Tiếp nhận & trả lời phản hồi (`/reviews`):** Xem đánh giá 1–5 sao của KH, nhấn `"Phản hồi"` và gửi nội dung `adminReply`.<br>- **Báo cáo KH, độ tuổi & sở thích (`/customer-analytics`):** Xem 4 thẻ KPI, biểu đồ 6 nhóm tuổi (`<18` đến `55+`), Ma trận sở thích danh mục theo độ tuổi & Top sản phẩm thả tim/mua sắm.<br>- **Khảo sát & Thống kê (`/surveys`):** Tạo khảo sát 4 loại câu hỏi, chọn đối tượng KH & bấm `"Phát hành"`; nhấn `"Kết quả"` để xem thống kê tỷ lệ hoàn thành & phân bố đáp án. |
+| **3. Khách hàng** (`CLIENT` — Mục III.4.3) | `http://localhost:5173/login` | `client1@miva.vn` / `admin123` | - **Đăng ký & Đăng nhập (`/register`, `/login`):** Tạo tài khoản mới và đăng nhập mua sắm.<br>- **Chỉnh sửa hồ sơ (`/account/profile`):** Cập nhật Họ tên, SĐT, Giới tính, Ngày sinh (`dateOfBirth`), ảnh đại diện và sổ địa chỉ.<br>- **Thả tim & Gửi phản hồi SP (`/products/:id`):** Bấm biểu tượng Trái tim ❤️ lưu yêu thích; chọn số sao (1–5 ⭐), nhập nhận xét và bấm `"Gửi đánh giá"`.<br>- **Nhận & Thực hiện khảo sát (`/surveys`):** Bấm vào Chuông thông báo Realtime trên Header, mở phiếu khảo sát, trả lời câu hỏi và bấm `"Nộp bài khảo sát"`. |
+
+---
+
+### 5. Xây dựng, Cài đặt CSDL & Phương án Sao lưu, Phục hồi CSDL (Mục II.1 — 10 điểm)
+
+#### 4.1. Hiện trạng Cài đặt Vật lý CSDL (`localhost:5433/htttdn_crm`)
+- **Hệ quản trị CSDL:** PostgreSQL 18 kết hợp Prisma ORM (`backend/prisma/schema.prisma` & `database/schema.sql` — 699 dòng DDL).
+- **Quy mô cấu trúc & dữ liệu thực tế:** Đã cài đặt đầy đủ **16 kiểu `ENUM`** và **23 bảng nghiệp vụ** (+ 1 bảng hệ thống `_prisma_migrations` với 5 phiên bản migration), lưu trữ **562 bản ghi dữ liệu thực tế** trên cả 6 kho dữ liệu (`Admin`: 4, `Client`: 16, `ClientAddress`: 19, `Category`: 8, `Product`: 21, `ProductColor`: 35, `ProductVariant`: 69, `ProductFavorite`: 11, `Cart`: 11, `CartItem`: 8, `Order`: 18, `OrderDetail`: 19, `Payment`: 18, `OrderStatusHistory`: 52, `Voucher`: 5, `VoucherDetail`: 14, `Review`: 9, `Survey`: 8, `SurveyQuestion`: 24, `SurveyOption`: 52, `SurveyResponse`: 58, `SurveyAnswer`: 16, `Notification`: 67).
+
+#### 4.2. Phương án Sao lưu (Backup) và Phục hồi (Restore) CSDL Đa tầng (Quy tắc 3-2-1)
+Hệ thống trang bị bộ kịch bản PowerShell tự động hóa hoàn toàn (`database/backup.ps1` và `database/restore.ps1`), tự động đọc chuỗi kết nối `DATABASE_URL` từ `backend/.env` và định vị công cụ `pg_dump` / `pg_restore`:
+1. **Sao lưu toàn phần định dạng nén nhị phân (`Custom Format .dump`):**
+   ```powershell
+   .\database\backup.ps1
+   ```
+   - Thực thi `pg_dump -h localhost -p 5433 -U user_ecommerce -F c -b -v` xuất bản sao lưu nén tại `database/backup/htttdn_crm_20261105_092611.dump` (`111.53 KB`), đồng thời tự động kiểm định danh mục TOC (`pg_restore -l`) xác nhận đủ **24 bảng vật lý** và **16 kiểu `ENUM`**.
+2. **Bảo vệ tức thời chống xóa nhầm (`Soft Delete` & `ON DELETE RESTRICT`):**
+   - Áp dụng cột `deletedAt` trên 11 bảng cốt lõi (`Admin`, `Client`, `ClientAddress`, `Category`, `Product`, `ProductColor`, `ProductVariant`, `Voucher`, `Review`, `Survey`, `Cart`) giúp khôi phục tức thì (`RTO = 0s`) nếu nhân sự thao tác xóa nhầm.
+3. **Phục hồi CSDL tự động khi xảy ra sự cố (`Restore` — `RTO < 5 phút`):**
+   ```powershell
+   # Khôi phục tự động từ bản sao lưu .dump mới nhất trong database/backup/
+   .\database\restore.ps1 -Latest
+
+   # Hoặc khôi phục từ một file .dump chỉ định cụ thể
+   .\database\restore.ps1 -File .\database\backup\htttdn_crm_20261105_092611.dump
+   ```
+   - Thực thi `pg_restore --clean --if-exists --no-owner --no-privileges -v` để tái tạo sạch toàn bộ 23 bảng nghiệp vụ, khóa chính, khóa ngoại, chỉ mục và nạp lại nguyên trạng 562 bản ghi.
 
 ---
 

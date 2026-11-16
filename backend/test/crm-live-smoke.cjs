@@ -5,7 +5,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 const baseUrl = process.env.CRM_TEST_API_URL || 'http://localhost:3000/api';
-const password = process.env.CRM_TEST_PASSWORD || 'admin123';
+const password = process.env.CRM_TEST_PASSWORD || '123456';
 let surveyId;
 let legacySurveyId;
 let reviewId;

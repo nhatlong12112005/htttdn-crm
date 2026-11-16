@@ -9,7 +9,7 @@ async function isBackendUpToDate(baseUrl) {
       headers: { 'content-type': 'application/json', 'x-app-role': 'admin' },
       body: JSON.stringify({
         email: process.env.CRM_TEST_ADMIN_EMAIL || 'admin@miva.vn',
-        password: process.env.CRM_TEST_PASSWORD || 'admin123',
+        password: process.env.CRM_TEST_PASSWORD || '123456',
       }),
     });
     if (loginRes.status !== 201) return false;

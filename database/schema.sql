@@ -1,4 +1,4 @@
-﻿-- CreateSchema
+-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
@@ -41,7 +41,7 @@ CREATE TYPE "DiscountType" AS ENUM ('percentage', 'fixed_amount');
 CREATE TYPE "ProductStatus" AS ENUM ('draft', 'active', 'inactive');
 
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('pending', 'confirmed', 'processing', 'shipping', 'completed', 'cancelled');
+CREATE TYPE "OrderStatus" AS ENUM ('pending', 'confirmed', 'processing', 'shipping', 'completed', 'cancelled', 'returned');
 
 -- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('cod', 'vnpay', 'momo', 'zalopay', 'bank_transfer', 'credit_card', 'pay_later');
@@ -115,7 +115,7 @@ CREATE TABLE "Survey" (
     "imageUrl" VARCHAR(1000),
     "scope" "SurveyScope" NOT NULL DEFAULT 'platform',
     "audienceType" "SurveyAudienceType" NOT NULL,
-    "recipientIds" UUID[] NOT NULL DEFAULT ARRAY[]::UUID[],
+    "recipientIds" UUID[] DEFAULT ARRAY[]::UUID[],
     "triggerType" "SurveyTriggerType" NOT NULL DEFAULT 'manual',
     "status" "SurveyStatus" NOT NULL DEFAULT 'draft',
     "startDate" TIMESTAMP(3),
@@ -393,6 +393,7 @@ CREATE TABLE "Payment" (
     "gateway" VARCHAR(100),
     "gatewayResponse" JSONB,
     "paidAt" TIMESTAMP(3),
+    "refundedAt" TIMESTAMP(3),
     "failedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
