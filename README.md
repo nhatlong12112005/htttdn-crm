@@ -1,3 +1,20 @@
+<div align="center">
+
+# MÔN: HỆ THỐNG THÔNG TIN DOANH NGHIỆP
+## ĐỀ TÀI: SÀN THƯƠNG MẠI ĐIỆN TỬ
+
+</div>
+
+**Giảng viên hướng dẫn:** TS. Lê Nhị Lãm Thúy  
+**Thành viên nhóm 06:**
+- Hà Nguyễn Thy Ân 3123411021
+- Mạc Anh Hào 3123411084
+- Nguyễn Tuấn Hào 3123411085
+- Trần Minh Khoa 3123411162
+- Trương Nhật Long 3123411182
+
+---
+
 # HTTT Quản lý khách hàng (CRM) – Đồ án HTTTDN
 
 Đồ án học phần **Hệ thống thông tin doanh nghiệp (841065)** – Trường ĐH Sài Gòn.
