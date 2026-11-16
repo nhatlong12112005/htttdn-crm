@@ -75,6 +75,8 @@ export const productColorsApi = {
 export const ordersApi = {
   getOrders: (params = {}) => axiosClient.get('/orders/admin/all', { params }),
   updateOrderStatus: (id, status, note) => axiosClient.patch(`/orders/${id}/status`, { status, note }),
+  approveReturn: (id, note) => axiosClient.patch(`/orders/${id}/approve-return`, { note }),
+  rejectReturn: (id, reason) => axiosClient.patch(`/orders/${id}/reject-return`, { reason }),
   assignOrder: (id, data) => axiosClient.patch(`/orders/${id}/assign`, data),
   autoAssignOrder: (id, params = {}) => axiosClient.post(`/orders/${id}/auto-assign`, null, { params }),
   autoAssignAll: () => axiosClient.post('/orders/admin/auto-assign-all'),

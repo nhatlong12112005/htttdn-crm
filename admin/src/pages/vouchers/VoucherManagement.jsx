@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, Eye, Edit, Trash2, Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, Edit, Lock, Unlock, CalendarClock, Plus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { vouchersApi } from '../../api';
 import { formatCurrency, formatDate } from '../../utils/formatHelpers';
-import { Button, Select, Badge } from '../../components/ui';
+import { Button, Select, Badge, Modal, Input } from '../../components/ui';
 import VoucherFormModal from './VoucherFormModal';
 
 export default function VoucherManagement() {
@@ -68,14 +68,48 @@ export default function VoucherManagement() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteClick = async (voucherId) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa voucher này?')) {
+  const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
+  const [voucherToRenew, setVoucherToRenew] = useState(null);
+  const [renewEndDate, setRenewEndDate] = useState('');
+
+  const handleToggleStatus = async (voucher) => {
+    const nextStatus = voucher.status === 'active' ? 'inactive' : 'active';
+    const actionLabel = nextStatus === 'inactive' ? 'khóa' : 'mở khóa';
+    if (window.confirm(`Bạn có chắc chắn muốn ${actionLabel} voucher "${voucher.code}"?`)) {
       try {
-        await vouchersApi.deleteVoucher(voucherId);
-        fetchVouchers();
+        await vouchersApi.updateVoucher(voucher.id, { status: nextStatus });
+        await fetchVouchers();
       } catch (err) {
-        alert(err.response?.data?.message || 'Xóa voucher thất bại');
+        alert(err.response?.data?.message || `Không thể ${actionLabel} voucher`);
       }
+    }
+  };
+
+  const handleOpenRenew = (voucher) => {
+    setVoucherToRenew(voucher);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 30);
+    const yyyy = tomorrow.getFullYear();
+    const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const dd = String(tomorrow.getDate()).padStart(2, '0');
+    setRenewEndDate(`${yyyy}-${mm}-${dd}`);
+    setIsRenewModalOpen(true);
+  };
+
+  const handleConfirmRenew = async () => {
+    if (!voucherToRenew || !renewEndDate) return;
+    try {
+      const endDate = new Date(renewEndDate);
+      endDate.setHours(23, 59, 59, 999);
+      await vouchersApi.updateVoucher(voucherToRenew.id, {
+        endDate: endDate.toISOString(),
+        status: 'active',
+      });
+      setIsRenewModalOpen(false);
+      setVoucherToRenew(null);
+      await fetchVouchers();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Gia hạn voucher thất bại');
     }
   };
 
@@ -175,7 +209,10 @@ export default function VoucherManagement() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" icon={Edit} className="text-slate-400 hover:text-amber-600" onClick={() => handleEditClick(v)} />
-                        <Button variant="ghost" size="sm" icon={Trash2} className="text-slate-400 hover:text-red-600" onClick={() => handleDeleteClick(v.id)} />
+                        <Button variant="ghost" size="sm" icon={v.status === 'active' ? Lock : Unlock} className={v.status === 'active' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'} onClick={() => handleToggleStatus(v)} title={v.status === 'active' ? 'Khóa voucher' : 'Mở khóa voucher'} />
+                        {(v.status === 'expired' || (v.endDate && new Date(v.endDate) < new Date())) && (
+                          <Button variant="ghost" size="sm" icon={CalendarClock} className="text-blue-600 hover:bg-blue-50" onClick={() => handleOpenRenew(v)} title="Gia hạn voucher" />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -219,6 +256,49 @@ export default function VoucherManagement() {
           onSave={handleSave}
         />
       )}
+
+      {/* Modal Gia hạn Voucher */}
+      <Modal
+        isOpen={isRenewModalOpen}
+        onClose={() => { setIsRenewModalOpen(false); setVoucherToRenew(null); }}
+        title={`Gia hạn Voucher: ${voucherToRenew?.code || ''}`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setIsRenewModalOpen(false); setVoucherToRenew(null); }}>
+              Hủy
+            </Button>
+            <Button variant="primary" onClick={handleConfirmRenew}>
+              Xác nhận gia hạn
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Voucher <strong className="text-slate-800 dark:text-slate-200">{voucherToRenew?.code}</strong> đã hết hạn.
+            Chọn ngày kết thúc mới để gia hạn và kích hoạt lại voucher.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              Ngày kết thúc mới *
+            </label>
+            <input
+              type="date"
+              value={renewEndDate}
+              onChange={(e) => setRenewEndDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500"
+            />
+          </div>
+          {voucherToRenew && (
+            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+              <div><span className="text-slate-500">Tên:</span> <strong>{voucherToRenew.name}</strong></div>
+              <div><span className="text-slate-500">Hạn cũ:</span> {voucherToRenew.endDate ? new Date(voucherToRenew.endDate).toLocaleDateString('vi-VN') : '—'}</div>
+              <div><span className="text-slate-500">Đã dùng:</span> {voucherToRenew.usedQuantity || 0}/{voucherToRenew.quantity}</div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

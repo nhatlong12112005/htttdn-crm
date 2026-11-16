@@ -89,7 +89,7 @@ export class AuthService {
       });
       if (!client || client.status !== 'active' || client.deletedAt) {
         throw new UnauthorizedException(
-          'Tài khoản của bạn đã bị khóa hoặc không còn hoạt động',
+          'Tài khoản của bạn hiện tại đang bị khóa.',
         );
       }
     } else if (payload.role === 'admin') {
@@ -99,7 +99,7 @@ export class AuthService {
       });
       if (!admin || admin.status !== 'active' || admin.deletedAt) {
         throw new UnauthorizedException(
-          'Tài khoản quản trị đã bị khóa hoặc không còn hoạt động',
+          'Tài khoản của bạn hiện tại đang bị khóa.',
         );
       }
     }
@@ -147,23 +147,37 @@ export class AuthService {
     const preferred = ACCOUNT_ROLES.includes(normalizedRole as AccountRole)
       ? (normalizedRole as AccountRole)
       : undefined;
-    const candidates = (await findAccountsByEmail(this.prisma.extended, email))
-      .filter(({ user }) => user.status === 'active' && !user.deletedAt)
-      .sort((a, b) => Number(b.role === preferred) - Number(a.role === preferred));
 
-    let user: any = null;
-    let role: AccountRole = 'client';
-    for (const candidate of candidates) {
+    const allAccounts = await findAccountsByEmail(this.prisma.extended, email);
+    if (!allAccounts.length) {
+      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+    }
+
+    const sorted = [...allAccounts].sort(
+      (a, b) => Number(b.role === preferred) - Number(a.role === preferred),
+    );
+
+    let matchedCandidate: { user: any; role: AccountRole } | null = null;
+    let passwordMatched = false;
+
+    for (const candidate of sorted) {
       if (await this.stringUtilService.compare(password, candidate.user.password)) {
-        user = candidate.user;
-        role = candidate.role;
+        passwordMatched = true;
+        matchedCandidate = candidate;
         break;
       }
     }
 
-    if (!user) {
+    if (!passwordMatched || !matchedCandidate) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
+
+    if (matchedCandidate.user.status === 'inactive' || matchedCandidate.user.deletedAt) {
+      throw new UnauthorizedException('Tài khoản của bạn hiện tại đang bị khóa.');
+    }
+
+    const user = matchedCandidate.user;
+    const role = matchedCandidate.role;
 
     this.assertPortalAccess(role, user, appRole);
 
@@ -210,7 +224,7 @@ export class AuthService {
     }
 
     if (!user || user.status !== 'active' || user.deletedAt) {
-      throw new UnauthorizedException('Tài khoản không còn hoạt động');
+      throw new UnauthorizedException('Tài khoản của bạn hiện tại đang bị khóa.');
     }
 
     this.assertPortalAccess(payload.role as AccountRole, user, appRole);

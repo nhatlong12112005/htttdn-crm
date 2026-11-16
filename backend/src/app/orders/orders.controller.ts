@@ -64,4 +64,34 @@ export class OrdersController {
   ) {
     return this.ordersService.updateStatus(id, dto, user);
   }
+
+  @Post(':id/return-request')
+  @Roles('client')
+  requestReturn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { reason?: string },
+    @User() user: UserInfo,
+  ) {
+    return this.ordersService.requestReturn(id, body?.reason, user);
+  }
+
+  @Patch(':id/approve-return')
+  @Roles('admin')
+  approveReturn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { note?: string },
+    @User() user: UserInfo,
+  ) {
+    return this.ordersService.approveReturn(id, body?.note, user);
+  }
+
+  @Patch(':id/reject-return')
+  @Roles('admin')
+  rejectReturn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { reason?: string },
+    @User() user: UserInfo,
+  ) {
+    return this.ordersService.rejectReturn(id, body?.reason, user);
+  }
 }

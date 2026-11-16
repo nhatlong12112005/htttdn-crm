@@ -230,9 +230,9 @@ export default function Analytics() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            title: 'Tổng Doanh Thu (GMV)',
+            title: 'Doanh Thu Đơn Hoàn Tất',
             value: formatVND(summary.totalGmv),
-            sub: `${summary.completedOrdersCount || 0} đơn hoàn tất`,
+            sub: `${summary.completedOrdersCount || 0} đơn đã giao thành công`,
             icon: DollarSign,
             color: 'text-emerald-600',
             bg: 'bg-emerald-100 dark:bg-emerald-950/60',
@@ -293,7 +293,7 @@ export default function Analytics() {
               Biểu đồ doanh thu & hoàn tiền
             </h3>
             <p className="text-xs text-slate-400">
-              Giá trị các đơn đã hoàn tất (GMV) và số tiền hoàn trả theo thời gian
+              Giá trị các đơn đã hoàn tất và số tiền hoàn trả theo thời gian
             </p>
           </div>
 
@@ -343,7 +343,7 @@ export default function Analytics() {
                 <Area
                   type="monotone"
                   dataKey="gmv"
-                  name="Tổng Doanh Thu (GMV)"
+                  name="Tổng Doanh Thu"
                   stroke="#e11d48"
                   fillOpacity={1}
                   fill="url(#colorGmv)"

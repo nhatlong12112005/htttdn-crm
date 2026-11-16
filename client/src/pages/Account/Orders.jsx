@@ -199,20 +199,20 @@ export default function Orders() {
     try {
       setReturnLoading(true);
       setReturnError('');
-      await orderService.returnOrder(
+      await orderService.requestReturn(
         returnOrderTarget.id,
-        `Trả hàng & hoàn tiền: ${finalReason}`,
+        finalReason,
       );
       setReturnSuccess(
-        `Đã xác nhận trả hàng! Số tiền ${formatPrice(returnOrderTarget.totalAmount)} đã được hoàn lại cho bạn.`,
+        `Đã gửi yêu cầu trả hàng & hoàn tiền thành công! Quản lý CRM sẽ xem xét và phê duyệt trong thời gian sớm nhất.`,
       );
       setTimeout(() => {
         setReturnOrderTarget(null);
         if (refetch) refetch();
         else window.location.reload();
-      }, 1000);
+      }, 1200);
     } catch (err) {
-      setReturnError(err.response?.data?.message || err.message || 'Lỗi khi xử lý trả hàng & hoàn tiền');
+      setReturnError(err.response?.data?.message || err.message || 'Lỗi khi gửi yêu cầu trả hàng & hoàn tiền');
     } finally {
       setReturnLoading(false);
     }
@@ -315,6 +315,8 @@ export default function Orders() {
           const isPending = order.status === 'pending';
           const isCancelled = order.status === 'cancelled';
           const isReturned = order.status === 'returned';
+          const isReturnRequested = order.status === 'completed' && Boolean(order.notes?.includes('[YÊU CẦU TRẢ HÀNG]'));
+          const isReturnRejected = order.status === 'completed' && Boolean(order.notes?.includes('[TỪ CHỐI TRẢ HÀNG]'));
           const canCancel = ['pending', 'confirmed', 'processing'].includes(order.status);
           const returnInfo = getOrderReturnInfo(order);
           const storeName = 
@@ -352,9 +354,16 @@ export default function Orders() {
                     <p className="font-bold text-base text-primary">{formatPrice(order.totalAmount)}</p>
                   </div>
                   <div>
-                    <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${getStatusColor(order.status)}`}>
-                      {getStatusText(order.status)}
-                    </span>
+                    {isReturnRequested ? (
+                      <span className="px-3 py-1.5 rounded-full text-xs font-bold border bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700/60 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 animate-pulse" />
+                        Chờ CRM duyệt trả hàng
+                      </span>
+                    ) : (
+                      <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${getStatusColor(order.status)}`}>
+                        {getStatusText(order.status)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -369,7 +378,29 @@ export default function Orders() {
                 </div>
               )}
 
-              {isCompleted && (
+              {isCompleted && isReturnRequested && (
+                <div className="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 shrink-0 text-amber-600 animate-pulse" />
+                    <span>
+                      <strong>Đang chờ Quản lý CRM duyệt trả hàng:</strong> Yêu cầu hoàn trả của bạn đã được tiếp nhận. Sau khi Quản lý CRM phê duyệt, số tiền ({formatPrice(order.payment?.amount || order.totalAmount)}) sẽ được tự động hoàn lại cho bạn.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isCompleted && !isReturnRequested && isReturnRejected && (
+                <div className="px-5 py-2.5 bg-rose-50 dark:bg-rose-950/30 border-b border-rose-200 dark:border-rose-900/40 text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>
+                      <strong>Yêu cầu trả hàng đã bị từ chối:</strong> {order.notes?.match(/\[TỪ CHỐI TRẢ HÀNG[^\]]*\]/)?.[0]?.replace('[', '').replace(']', '') || 'Không đủ điều kiện đổi trả'}.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isCompleted && !isReturnRequested && !isReturnRejected && (
                 <div className="px-5 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-100 dark:border-emerald-900/40 text-xs text-emerald-800 dark:text-emerald-300 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
@@ -500,14 +531,21 @@ export default function Orders() {
                       </button>
                     )}
 
-                    {isCompleted && returnInfo.canReturn && (
+                    {isCompleted && isReturnRequested && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-xs font-semibold">
+                        <Clock className="w-3.5 h-3.5 animate-pulse" />
+                        <span>Đang chờ CRM duyệt yêu cầu...</span>
+                      </span>
+                    )}
+
+                    {isCompleted && !isReturnRequested && returnInfo.canReturn && (
                       <button
                         onClick={() => handleOpenReturnModal(order)}
                         data-testid={`return-order-${order.id}`}
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold transition cursor-pointer"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Trả hàng / Hoàn tiền ({returnInfo.daysLeft} ngày)</span>
+                        <span>Yêu cầu Trả hàng / Hoàn tiền ({returnInfo.daysLeft} ngày)</span>
                       </button>
                     )}
                   </div>
@@ -739,7 +777,7 @@ export default function Orders() {
             <div className="flex items-center justify-between pb-3 border-b border-light-border dark:border-dark-border">
               <h3 className="font-bold text-base text-amber-600 dark:text-amber-400 flex items-center gap-2">
                 <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                Trả hàng & Hoàn tiền #{returnOrderTarget.orderCode || returnOrderTarget.id.slice(0, 8).toUpperCase()}
+                Yêu cầu Trả hàng & Hoàn tiền #{returnOrderTarget.orderCode || returnOrderTarget.id.slice(0, 8).toUpperCase()}
               </h3>
               <button
                 type="button"
@@ -753,14 +791,17 @@ export default function Orders() {
 
             <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs space-y-1">
               <p className="font-bold">
-                Chính sách đổi trả & hoàn tiền trong vòng {RETURN_POLICY_DAYS} ngày kể từ lúc giao thành công
+                Chính sách gửi yêu cầu đổi trả & hoàn tiền trong vòng {RETURN_POLICY_DAYS} ngày kể từ lúc nhận hàng
               </p>
               <p>
-                Số tiền hoàn lại cho bạn:{' '}
+                Số tiền dự kiến hoàn lại:{' '}
                 <strong className="text-sm text-emerald-700 dark:text-emerald-400">
                   {formatPrice(returnOrderTarget.totalAmount)}
                 </strong>{' '}
                 (Phương thức gốc: {getPaymentMethodLabel(returnOrderTarget.payment?.method)})
+              </p>
+              <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                Lưu ý: Yêu cầu của bạn sẽ được Quản lý CRM xem xét và phê duyệt. Sau khi duyệt, đơn hàng sẽ chuyển sang trạng thái đã trả hàng và hoàn tiền.
               </p>
             </div>
 
@@ -840,7 +881,7 @@ export default function Orders() {
                   disabled={returnLoading}
                   className="px-5 py-2 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold shadow-xs transition disabled:opacity-60 cursor-pointer"
                 >
-                  {returnLoading ? 'Đang xử lý hoàn tiền...' : `Xác nhận trả hàng & Hoàn ${formatPrice(returnOrderTarget.totalAmount)}`}
+                  {returnLoading ? 'Đang gửi yêu cầu...' : `Gửi yêu cầu trả hàng & hoàn tiền`}
                 </button>
               </div>
             </form>

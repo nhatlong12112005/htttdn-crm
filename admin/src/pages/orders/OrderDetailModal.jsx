@@ -12,8 +12,17 @@ import {
   FileText,
 } from 'lucide-react';
 
-export default function OrderDetailModal({ isOpen, onClose, order, onStatusChange }) {
+export default function OrderDetailModal({
+  isOpen,
+  onClose,
+  order,
+  onStatusChange,
+  onApproveReturn,
+  onRejectReturn,
+}) {
   if (!order) return null;
+
+  const isReturnRequested = order.status === 'completed' && Boolean(order.notes?.includes('[YÊU CẦU TRẢ HÀNG]'));
 
   const orderItems = (order.details || []).map((od) => ({
     ...od,
@@ -93,7 +102,25 @@ export default function OrderDetailModal({ isOpen, onClose, order, onStatusChang
                   Xác nhận giao thành công (Completed)
                 </Button>
               )}
-              {order.status === 'completed' && (
+              {order.status === 'completed' && isReturnRequested && (
+                <>
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                    onClick={() => onApproveReturn ? onApproveReturn(order.id) : onStatusChange(order.id, 'returned', 'Quản lý CRM duyệt trả hàng')}
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-1.5 inline" />
+                    Duyệt trả hàng & Hoàn tiền
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => onRejectReturn ? onRejectReturn(order.id) : null}
+                  >
+                    <ShieldAlert className="w-4 h-4 mr-1.5 inline" />
+                    Từ chối yêu cầu trả hàng
+                  </Button>
+                </>
+              )}
+              {order.status === 'completed' && !isReturnRequested && (
                 <Button
                   className="bg-amber-600 hover:bg-amber-700 text-white"
                   onClick={() => {
@@ -127,6 +154,41 @@ export default function OrderDetailModal({ isOpen, onClose, order, onStatusChang
       }
     >
       <div className="space-y-6">
+        {/* Banner yêu cầu trả hàng từ khách hàng */}
+        {isReturnRequested && (
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                  Khách hàng gửi Yêu cầu Trả hàng & Hoàn tiền
+                </h4>
+                <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                  Lý do khách gửi: <strong>{order.notes?.match(/\[YÊU CẦU TRẢ HÀNG\]:?\s*([^|]*)/)?.[1]?.trim() || 'Khách yêu cầu hoàn trả'}</strong>
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                  Số tiền hoàn lại: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(order.payment?.amount || order.totalAmount)}</strong> (Phương thức gốc: {order.payment?.method?.toUpperCase() || 'COD'})
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
+                onClick={() => onApproveReturn ? onApproveReturn(order.id) : onStatusChange(order.id, 'returned', 'Quản lý CRM duyệt trả hàng')}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1 inline" /> Duyệt trả hàng
+              </Button>
+              <Button
+                variant="danger"
+                className="text-xs"
+                onClick={() => onRejectReturn ? onRejectReturn(order.id) : null}
+              >
+                Từ chối
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Top Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
           <div>

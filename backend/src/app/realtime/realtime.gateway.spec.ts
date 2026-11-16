@@ -78,7 +78,7 @@ describe('RealtimeGateway', () => {
 
   it('joins the CRM operations room for a CRM manager', async () => {
     const { gateway, auth, prisma, client } = setup('admin', 'accessToken_crm=valid');
-    client.handshake.auth.role = 'crm';
+    client.handshake.auth.role = 'crm' as any;
     prisma.admin.findUnique.mockResolvedValue({ ...user, roleCode: 'CRM_MANAGER' });
     auth.verifyToken.mockResolvedValue({ userID: id, role: 'admin', adminRole: 'CRM_MANAGER' });
     await gateway.handleConnection(client as unknown as Socket);

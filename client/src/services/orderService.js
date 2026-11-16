@@ -17,6 +17,10 @@ export const orderService = {
     return await apiClient.patch(`/orders/${id}/status`, { status: 'cancelled', note });
   },
 
+  requestReturn: async (id, reason) => {
+    return await apiClient.post(`/orders/${id}/return-request`, { reason });
+  },
+
   returnOrder: async (id, note) => {
     return await apiClient.patch(`/orders/${id}/status`, { status: 'returned', note });
   },

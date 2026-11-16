@@ -4,7 +4,6 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Trash2,
   MessageSquareReply,
   CheckCircle2,
   Clock,
@@ -84,15 +83,6 @@ export default function ReviewManagement() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa phản hồi này?')) return;
-    try {
-      await reviewsApi.deleteReview(id);
-      fetchReviews();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Xóa phản hồi thất bại');
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -226,13 +216,6 @@ export default function ReviewManagement() {
                           >
                             {hasReplied ? 'Sửa trả lời' : 'Phản hồi'}
                           </Button>
-                          <button
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                            title="Xóa phản hồi"
-                            onClick={() => handleDelete(review.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
                       </td>
                     </tr>

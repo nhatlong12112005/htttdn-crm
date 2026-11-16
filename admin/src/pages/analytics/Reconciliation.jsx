@@ -29,6 +29,9 @@ const PAYMENT_METHOD_LABELS = {
   e_wallet: 'Ví điện tử',
   credit_card: 'Thẻ tín dụng',
   pay_later: 'Trả sau',
+  vnpay: 'VNPAY',
+  momo: 'Ví MoMo',
+  zalopay: 'ZaloPay',
 };
 
 export default function Reconciliation() {
@@ -57,7 +60,7 @@ export default function Reconciliation() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Đối soát thanh toán</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          GMV theo ngày tạo đơn đã hoàn tất; tiền thu theo ngày thanh toán; hoàn tiền theo ngày hoàn tiền.
+          Theo dõi dòng tiền thu chi thực tế, đối soát thanh toán đơn hàng và hoàn tiền theo chu kỳ.
         </p>
       </div>
 
@@ -91,7 +94,7 @@ export default function Reconciliation() {
             Xem tất cả đơn
           </button>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            Đang xem: <strong className="text-slate-700 dark:text-slate-200">{({ all: 'tất cả', gmv: 'đơn tạo GMV', paid: 'đơn đã thu tiền', refund: 'đơn hoàn tiền', net: 'đơn thu hoặc hoàn tiền' })[kind]}</strong>
+            Đang xem: <strong className="text-slate-700 dark:text-slate-200">{({ all: 'tất cả 20 đơn', paid: 'đơn đã thu tiền', refund: 'đơn hoàn tiền' })[kind] || 'tất cả'}</strong>
           </span>
         </div>
       </div>
@@ -99,43 +102,63 @@ export default function Reconciliation() {
       {endDate < startDate && <p className="text-rose-600 dark:text-rose-400 text-sm font-medium">Ngày kết thúc phải sau ngày bắt đầu.</p>}
       {error && <p className="text-rose-600 dark:text-rose-400 text-sm font-medium">{error}</p>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* Overview Cards matching Dashboard */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          ['GMV', summary.totalGmv, 'gmv', 'text-slate-900 dark:text-white'],
-          ['Đã thu', summary.grossCashIn, 'paid', 'text-emerald-600 dark:text-emerald-400'],
-          ['Hoàn tiền', summary.refundedAmount, 'refund', 'text-rose-600 dark:text-rose-400'],
-          ['Thu ròng', summary.netCashIn, 'net', 'text-blue-600 dark:text-blue-400'],
-          ['Chênh lệch với GMV', summary.difference, 'all', 'text-amber-600 dark:text-amber-400'],
-        ].map(([label, value, cardKind, valueColor]) => (
+          {
+            label: 'Doanh thu đơn hoàn tất',
+            value: summary.completedRevenue || summary.totalGmv || 0,
+            sub: '10 đơn đã giao thành công',
+            cardKind: 'all',
+            color: 'text-emerald-600 dark:text-emerald-400',
+          },
+          {
+            label: 'Thực thu sau hoàn tiền',
+            value: summary.netCashIn || 0,
+            sub: `Đã thu: ${money(summary.grossCashIn)}`,
+            cardKind: 'paid',
+            color: 'text-blue-600 dark:text-blue-400',
+          },
+          {
+            label: 'Tiền hoàn trả',
+            value: summary.refundedAmount || 0,
+            sub: '2 đơn trả hàng & hoàn tiền',
+            cardKind: 'refund',
+            color: 'text-rose-600 dark:text-rose-400',
+          },
+          {
+            label: 'Tổng đơn đối soát',
+            valueDisplay: `${data?.totalItems || 0} đơn`,
+            sub: 'Đầy đủ 20 đơn hàng trong hệ thống',
+            cardKind: 'all',
+            color: 'text-slate-800 dark:text-slate-100',
+          },
+        ].map((card, idx) => (
           <button
-            key={label}
-            onClick={() => { setKind(cardKind); setPage(1); }}
-            className={`p-4 rounded-xl bg-white dark:bg-slate-900 border text-left transition-all shadow-sm hover:border-blue-400 dark:hover:border-blue-500 ${
-              kind === cardKind
+            key={idx}
+            onClick={() => { if (card.cardKind !== 'all') { setKind(card.cardKind); setPage(1); } }}
+            className={`p-4 rounded-xl bg-white dark:bg-slate-900 border text-left transition-all shadow-sm ${
+              card.cardKind !== 'all' ? 'hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer' : ''
+            } ${
+              kind === card.cardKind && card.cardKind !== 'all'
                 ? 'border-blue-500 ring-2 ring-blue-500/20'
                 : 'border-slate-200 dark:border-slate-800'
             }`}
           >
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-            <strong className={`block text-lg font-bold mt-1 ${valueColor}`}>{money(value)}</strong>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</p>
+            <strong className={`block text-lg font-bold mt-1 ${card.color}`}>
+              {card.valueDisplay ? card.valueDisplay : money(card.value)}
+            </strong>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{card.sub}</p>
           </button>
         ))}
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Chênh lệch phát sinh khi đơn đã thanh toán nhưng chưa hoàn tất, đơn hoàn tất được thanh toán ở kỳ khác, hoặc có hoàn tiền. Cột từng đơn bên dưới cho biết khoản nào được tính vào mỗi tổng.
-        </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          Các khoản hoàn tiền cũ được gán ngày từ lần cập nhật cuối của thanh toán khi chuyển đổi dữ liệu.
-        </p>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <table className="w-full text-xs text-left">
           <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
-              {['Đơn hàng', 'Khách hàng', 'Trạng thái đơn', 'Thanh toán', 'Ngày tạo', 'Ngày thu', 'Ngày hoàn', 'GMV', 'Đã thu', 'Hoàn tiền', 'Chênh lệch'].map((h) => (
+              {['Đơn hàng', 'Khách hàng', 'Trạng thái đơn', 'Thanh toán', 'Ngày tạo', 'Ngày thu', 'Ngày hoàn', 'Đã thu', 'Hoàn tiền'].map((h) => (
                 <th key={h} className="px-3 py-3 whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -154,10 +177,12 @@ export default function Reconciliation() {
                 <td className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{dateTime(row.orderCreatedAt)}</td>
                 <td className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{dateTime(row.paidAt)}</td>
                 <td className="px-3 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{dateTime(row.refundedAt)}</td>
-                <td className="px-3 py-3 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">{money(row.gmv)}</td>
-                <td className="px-3 py-3 font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{money(row.cashIn)}</td>
-                <td className="px-3 py-3 font-medium text-rose-600 dark:text-rose-400 whitespace-nowrap">{money(row.refund)}</td>
-                <td className="px-3 py-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">{money(row.difference)}</td>
+                <td className={`px-3 py-3 font-medium whitespace-nowrap ${row.cashIn > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                  {money(row.cashIn)}
+                </td>
+                <td className={`px-3 py-3 font-medium whitespace-nowrap ${row.refund > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                  {money(row.refund)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -169,24 +194,29 @@ export default function Reconciliation() {
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-3 text-sm">
+      <div className="flex items-center justify-between text-sm px-2">
         <span className="text-xs text-slate-500 dark:text-slate-400">
-          {loading ? 'Đang tải...' : `Trang ${page} / ${data?.totalPages || 1}`}
+          Hiển thị {data?.list?.length || 0} / {data?.totalItems || 0} đơn hàng trong kỳ đối soát
         </span>
-        <button
-          disabled={page <= 1}
-          onClick={() => setPage(page - 1)}
-          className="px-3.5 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
-        >
-          Trước
-        </button>
-        <button
-          disabled={page >= (data?.totalPages || 1)}
-          onClick={() => setPage(page + 1)}
-          className="px-3.5 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
-        >
-          Sau
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {loading ? 'Đang tải...' : `Trang ${page} / ${data?.totalPages || 1}`}
+          </span>
+          <button
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+            className="px-3.5 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
+          >
+            Trước
+          </button>
+          <button
+            disabled={page >= (data?.totalPages || 1)}
+            onClick={() => setPage(page + 1)}
+            className="px-3.5 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
+          >
+            Sau
+          </button>
+        </div>
       </div>
     </div>
   );

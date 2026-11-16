@@ -5,7 +5,6 @@ import {
   Edit,
   Lock,
   Unlock,
-  Trash2,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -98,21 +97,6 @@ export default function UserManagement() {
     }
   };
 
-  const handleDeleteUser = async (user) => {
-    if (
-      window.confirm(
-        `Bạn có chắc chắn muốn xóa khách hàng "${user.fullName || user.email}"?`
-      )
-    ) {
-      try {
-        await usersApi.deleteUser(user.id);
-        fetchUsers();
-      } catch (err) {
-        alert(err.response?.data?.message || 'Không thể xóa khách hàng');
-      }
-    }
-  };
-
   const handleSave = async (savedData) => {
     try {
       if (userToEdit) {
@@ -140,7 +124,7 @@ export default function UserManagement() {
             Quản lý Khách hàng (CRM)
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Thêm mới, chỉnh sửa hồ sơ, khóa/mở khóa và xóa tài khoản khách hàng ({totalItems} khách hàng)
+            Thêm mới, chỉnh sửa hồ sơ, khóa/mở khóa tài khoản khách hàng ({totalItems} khách hàng)
           </p>
         </div>
         <Button variant="primary" icon={Plus} onClick={handleAddClick}>
@@ -289,14 +273,6 @@ export default function UserManagement() {
                             }
                             onClick={() => handleToggleStatus(user)}
                             title={isLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản khách hàng'}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            icon={Trash2}
-                            className="text-rose-600 hover:bg-rose-50"
-                            onClick={() => handleDeleteUser(user)}
-                            title="Xóa khách hàng"
                           />
                         </div>
                       </td>

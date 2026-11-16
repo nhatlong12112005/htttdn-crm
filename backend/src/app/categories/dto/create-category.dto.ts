@@ -8,6 +8,12 @@ export const CreateCategorySchema = z
       .trim()
       .min(1, 'Tên danh mục là bắt buộc')
       .max(255, 'Tên danh mục không được vượt quá 255 ký tự'),
+    description: z
+      .string()
+      .trim()
+      .max(2000, 'Mô tả không được vượt quá 2000 ký tự')
+      .optional()
+      .nullable(),
   })
   .strict();
 

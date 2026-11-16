@@ -27,7 +27,7 @@ export class CategoryService extends PrismaBaseService<'category'> {
   /**
    * Danh sách category:
    * - phân trang
-   * - tìm kiếm
+   * - tìm kiếm theo tên, slug, mô tả
    */
   async getCategories({
     page = 1,
@@ -37,10 +37,10 @@ export class CategoryService extends PrismaBaseService<'category'> {
     const searchCondition = this.queryUtil.createStringSearchCondition(search, [
       'name',
       'slug',
+      'description',
     ]) as Prisma.CategoryWhereInput;
 
     const where: Prisma.CategoryWhereInput = {
-      deletedAt: null,
       ...searchCondition,
     };
 
@@ -63,7 +63,14 @@ export class CategoryService extends PrismaBaseService<'category'> {
       },
     });
 
-    return paging.format(list);
+    const formatted = paging.format(list);
+    return {
+      ...formatted,
+      list: (formatted.list || []).map((cat: any) => ({
+        ...cat,
+        status: cat.deletedAt ? 'inactive' : 'active',
+      })),
+    };
   }
 
   async createCategory(createCategoryDto: CreateCategoryDto) {
@@ -76,10 +83,17 @@ export class CategoryService extends PrismaBaseService<'category'> {
     if (existingCategory?.deletedAt) {
       const category = await this.extended.update({
         where: { id: existingCategory.id },
-        data: { name: createCategoryDto.name, deletedAt: null },
+        data: {
+          name: createCategoryDto.name,
+          description: createCategoryDto.description ?? null,
+          deletedAt: null,
+        },
       });
       this.realtime.emitCategoryUpdated(category.id);
-      return category;
+      return {
+        ...category,
+        status: 'active',
+      };
     }
 
     if (existingCategory) {
@@ -92,10 +106,14 @@ export class CategoryService extends PrismaBaseService<'category'> {
       data: {
         name: createCategoryDto.name,
         slug,
+        description: createCategoryDto.description ?? null,
       },
     });
     this.realtime.emitCategoryUpdated(category.id);
-    return category;
+    return {
+      ...category,
+      status: 'active',
+    };
   }
 
   async updateCategory(params: {
@@ -103,12 +121,32 @@ export class CategoryService extends PrismaBaseService<'category'> {
     data: UpdateCategoryDto;
   }) {
     const { where, data: dataUpdate } = params;
+    const dataToUpdate: Prisma.CategoryUpdateInput = {};
+
+    if (dataUpdate.name !== undefined) {
+      dataToUpdate.name = dataUpdate.name;
+      dataToUpdate.slug = this.stringUtilService.toSlug(dataUpdate.name);
+    }
+
+    if (dataUpdate.description !== undefined) {
+      dataToUpdate.description = dataUpdate.description;
+    }
+
+    if (dataUpdate.status === 'inactive') {
+      dataToUpdate.deletedAt = new Date();
+    } else if (dataUpdate.status === 'active') {
+      dataToUpdate.deletedAt = null;
+    }
+
     const data = await this.extended.update({
-      data: { name: dataUpdate.name },
+      data: dataToUpdate,
       where,
     });
     this.realtime.emitCategoryUpdated(data.id);
-    return data;
+    return {
+      ...data,
+      status: data.deletedAt ? 'inactive' : 'active',
+    };
   }
 
   async deleteCategory(where: Prisma.CategoryWhereUniqueInput) {

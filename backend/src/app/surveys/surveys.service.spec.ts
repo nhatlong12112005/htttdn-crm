@@ -426,7 +426,7 @@ describe('SurveysService', () => {
       SurveyStatus.active,
       user(adminId, 'admin'),
     );
-    expect(result.deliveredCount).toBe(0);
+    expect((result as any).deliveredCount).toBe(0);
     expect(tx.surveyResponse.createMany).not.toHaveBeenCalled();
     expect(tx.notification.createMany).not.toHaveBeenCalled();
   });

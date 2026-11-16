@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, ShoppingCart, Loader2, Heart } from 'lucide-react';
+import { Package, ShoppingCart, Loader2, Heart, Zap } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { formatPrice } from '../../../utils/formatPrice';
 import { useCart } from '../../../hooks/useCart';
@@ -108,6 +108,47 @@ export default function ProductCard({ product }) {
     }
   };
 
+  const handleBuyNowClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      toast.info('Vui lòng đăng nhập để mua ngay sản phẩm');
+      navigate('/login');
+      return;
+    }
+
+    if (hasSingleVariant) {
+      const v = purchasableVariants[0];
+      const color = product.colors?.find(c => c.variants?.some(vr => vr.id === v.id)) || product.colors?.[0];
+      navigate('/checkout', {
+        state: {
+          buyNowItems: [
+            {
+              id: `buynow-${v.id}`,
+              productVariantId: v.id,
+              quantity: 1,
+              productVariant: {
+                ...v,
+                productColor: {
+                  ...color,
+                  product: {
+                    id: product.id,
+                    name: product.name,
+                    slug: product.slug,
+                    vendor: product.vendor,
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    } else {
+      setShowQuickAdd(true);
+    }
+  };
+
   return (
     <>
       <Link
@@ -168,41 +209,59 @@ export default function ProductCard({ product }) {
             {product.name}
           </h3>
 
-          {/* Price + Cart Button */}
-          <div className="mt-auto flex items-end justify-between gap-2">
-            <div className="min-w-0">
-              {price ? (
-                <div>
-                  {showPriceRange && (
-                    <p className="text-[10px] sm:text-xs text-light-muted dark:text-dark-muted mb-0.5">Từ</p>
-                  )}
-                  <p className="font-bold text-sm sm:text-base text-primary leading-tight">
-                    {formatPrice(price)}
-                  </p>
-                  {voucherPrice && <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
-                    <strong>{formatPrice(voucherPrice.totalAmount)}</strong> với mã <span className="font-semibold">{voucherPrice.code}</span>
-                  </div>}
-                </div>
-              ) : (
-                <p className="text-sm text-light-muted dark:text-dark-muted italic">Liên hệ</p>
-              )}
-            </div>
-
-            {/* Cart button */}
-            {totalStock > 0 && (
-              <button
-                onClick={handleCartClick}
-                disabled={isAddingToCart}
-                className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-primary/10 text-primary hover:bg-primary hover:text-white active:scale-95 disabled:opacity-60 transition-all duration-200"
-                aria-label="Thêm vào giỏ"
-                title="Thêm vào giỏ"
-              >
-                {isAddingToCart ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ShoppingCart className="w-4 h-4" />
+          {/* Price & Voucher */}
+          <div className="mt-auto">
+            {price ? (
+              <div>
+                {showPriceRange && (
+                  <p className="text-[10px] sm:text-xs text-light-muted dark:text-dark-muted mb-0.5">Từ</p>
                 )}
-              </button>
+                <p className="font-bold text-sm sm:text-base text-primary leading-tight">
+                  {formatPrice(price)}
+                </p>
+                {voucherPrice && (
+                  <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
+                    <strong>{formatPrice(voucherPrice.totalAmount)}</strong> với mã <span className="font-semibold">{voucherPrice.code}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-light-muted dark:text-dark-muted italic">Liên hệ</p>
+            )}
+
+            {/* Actions: Thêm vào giỏ & Mua ngay */}
+            {totalStock > 0 ? (
+              <div className="mt-3 flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                <button
+                  onClick={handleCartClick}
+                  disabled={isAddingToCart}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10 text-primary hover:bg-primary hover:text-white active:scale-95 disabled:opacity-60 transition-all duration-200 shrink-0"
+                  aria-label="Thêm vào giỏ"
+                  title="Thêm vào giỏ hàng"
+                >
+                  {isAddingToCart ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="w-4 h-4" />
+                  )}
+                </button>
+
+                <button
+                  onClick={handleBuyNowClick}
+                  className="flex-1 h-9 px-3 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 active:scale-95"
+                  aria-label="Mua ngay"
+                  title="Mua ngay sản phẩm"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-current" />
+                  <span>Mua ngay</span>
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                <span className="block text-center text-xs font-semibold text-slate-400 py-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
+                  Hết hàng
+                </span>
+              </div>
             )}
           </div>
         </div>

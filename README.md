@@ -44,7 +44,17 @@ npm run dev                   # http://localhost:5173
 
 ## Sao lưu / phục hồi CSDL
 
-Xem [database/README.md](database/README.md).
+Hệ thống cung cấp sẵn 2 kịch bản tự động đọc cấu hình từ `backend/.env`:
+
+```powershell
+# 1. Sao lưu tự động CSDL ra tệp .dump (nén mức 9, tự kiểm tra toàn vẹn):
+powershell -ExecutionPolicy Bypass -File .\database\backup.ps1
+
+# 2. Phục hồi tự động 3 bước từ bản sao lưu .dump mới nhất:
+powershell -ExecutionPolicy Bypass -File .\database\restore.ps1
+```
+
+Xem tài liệu chi tiết và kết quả thực nghiệm tại [database/README.md](database/README.md).
 
 ## Tách quyền Admin Server và CRM
 

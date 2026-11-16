@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, ShieldCheck, ClipboardList } from 'lucide-react';
+import { Bell, Check, ShieldCheck, ClipboardList, RotateCcw } from 'lucide-react';
 import { notificationsApi } from '../../api';
 import { useNavigate } from 'react-router-dom';
 
@@ -86,6 +86,8 @@ export default function NotificationDropdown() {
       navigate(`/reviews?reviewId=${encodeURIComponent(data.reviewId)}`);
     } else if (data.kind === 'survey_response' && data.surveyId && data.responseId) {
       navigate(`/surveys?surveyId=${encodeURIComponent(data.surveyId)}&responseId=${encodeURIComponent(data.responseId)}`);
+    } else if (data.kind === 'order_return_request') {
+      navigate('/orders');
     } else if (notif.surveyId) {
       navigate(`/surveys?surveyId=${encodeURIComponent(notif.surveyId)}`);
     }
@@ -161,6 +163,8 @@ export default function NotificationDropdown() {
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                       {isSurvey ? (
                         <ClipboardList className="w-5 h-5 text-blue-600" />
+                      ) : notif.data?.kind === 'order_return_request' ? (
+                        <RotateCcw className="w-5 h-5 text-amber-600" />
                       ) : (
                         <Bell className="w-5 h-5 text-amber-500" />
                       )}

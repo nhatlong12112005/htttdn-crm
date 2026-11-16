@@ -13,3 +13,10 @@ ALTER TABLE "Admin" ALTER COLUMN "roleCode" SET DEFAULT 'CRM_MANAGER';
 ALTER TABLE "Review" ALTER COLUMN "orderDetailId" DROP NOT NULL;
 ALTER TABLE "Review" ADD COLUMN IF NOT EXISTS "adminReply" TEXT;
 ALTER TABLE "Review" ADD COLUMN IF NOT EXISTS "repliedAt" TIMESTAMP(3);
+
+
+-- 3. Bổ sung mô tả cho bảng Category (Mô tả danh mục sản phẩm)
+ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "description" TEXT;
+
+-- 4. Bổ sung giá trị 'returned' cho enum OrderStatus
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'returned';

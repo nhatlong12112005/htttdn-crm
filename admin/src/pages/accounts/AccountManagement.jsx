@@ -5,7 +5,6 @@ import {
   Search,
   Lock,
   Unlock,
-  Trash2,
   KeyRound,
   Loader2,
   Users,
@@ -56,11 +55,6 @@ export default function AccountManagement() {
     department: 'CRM_MANAGER',
     status: 'active',
   });
-
-  // Permission Assignment Modal
-  const [permModalAccount, setPermModalAccount] = useState(null);
-  const [selectedDepartment, setSelectedDepartment] = useState('CRM_MANAGER');
-  const [savingPerm, setSavingPerm] = useState(false);
 
   const fetchAllAccounts = useCallback(async () => {
     setLoading(true);
@@ -154,11 +148,6 @@ export default function AccountManagement() {
     setIsModalOpen(true);
   };
 
-  const handleOpenPermissionModal = (acc) => {
-    setPermModalAccount(acc);
-    setSelectedDepartment(acc.adminRole || acc.department || 'CRM_MANAGER');
-  };
-
   const handleSaveAccount = async () => {
     if (!formData.fullName.trim() || !formData.email.trim()) {
       alert('Vui lòng nhập đầy đủ Họ tên và Email');
@@ -202,23 +191,15 @@ export default function AccountManagement() {
     }
   };
 
-  const handleSavePermission = async () => {
-    if (!permModalAccount) return;
-    setSavingPerm(true);
-    try {
-      await usersApi.updateUser(permModalAccount.id, {
-        department: selectedDepartment,
-      });
-      setPermModalAccount(null);
-      fetchAllAccounts();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Cập nhật phân quyền thất bại');
-    } finally {
-      setSavingPerm(false);
-    }
-  };
-
   const handleToggleLock = async (acc) => {
+    const isSuperAdmin =
+      acc.role === 'admin' &&
+      (acc.adminRole === 'SUPER_ADMIN' || acc.department === 'SUPER_ADMIN');
+    if (isSuperAdmin) {
+      alert('Không được phép khóa hoặc mở khóa tài khoản Admin Server');
+      return;
+    }
+
     const nextStatus = acc.status === 'active' ? 'inactive' : 'active';
     const label = nextStatus === 'inactive' ? 'KHÓA' : 'MỞ KHÓA';
     if (
@@ -233,22 +214,6 @@ export default function AccountManagement() {
       fetchAllAccounts();
     } catch (err) {
       alert(err.response?.data?.message || 'Không thể cập nhật trạng thái tài khoản');
-    }
-  };
-
-  const handleDeleteAccount = async (acc) => {
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn XÓA tài khoản "${acc.fullName}" (${acc.email})?`
-      )
-    ) {
-      return;
-    }
-    try {
-      await usersApi.deleteUser(acc.id);
-      fetchAllAccounts();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Không thể xóa tài khoản');
     }
   };
 
@@ -281,7 +246,7 @@ export default function AccountManagement() {
             Quản lý Tài khoản &amp; Phân quyền
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Thêm mới, khóa/mở khóa, xóa và cấp quyền vai trò cho các tài khoản trong hệ thống
+            Thêm mới, khóa/mở khóa và cấp quyền vai trò cho các tài khoản trong hệ thống
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -416,6 +381,9 @@ export default function AccountManagement() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {combinedAccounts.map((acc) => {
                   const isLocked = acc.status === 'inactive';
+                  const isSuperAdmin =
+                    acc.role === 'admin' &&
+                    (acc.adminRole === 'SUPER_ADMIN' || acc.department === 'SUPER_ADMIN');
                   const code =
                     acc.userCode ||
                     (acc.role === 'admin'
@@ -457,43 +425,32 @@ export default function AccountManagement() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-1">
-                          {acc.role === 'admin' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              icon={KeyRound}
-                              onClick={() => handleOpenPermissionModal(acc)}
-                              title="Phân quyền vai trò"
-                            >
-                              Phân quyền
-                            </Button>
-                          )}
                           <Button
                             variant="ghost"
                             size="sm"
                             icon={Edit}
                             onClick={() => handleOpenEdit(acc)}
-                            title="Sửa tài khoản"
+                            title="Sửa thông tin / Cập nhật vai trò"
                           />
                           <Button
                             variant="ghost"
                             size="sm"
                             icon={isLocked ? Unlock : Lock}
                             className={
-                              isLocked
-                                ? 'text-emerald-600 hover:bg-emerald-50'
-                                : 'text-amber-600 hover:bg-amber-50'
+                              isSuperAdmin
+                                ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                : isLocked
+                                  ? 'text-emerald-600 hover:bg-emerald-50'
+                                  : 'text-amber-600 hover:bg-amber-50'
                             }
                             onClick={() => handleToggleLock(acc)}
-                            title={isLocked ? 'Mở khóa' : 'Khóa tài khoản'}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            icon={Trash2}
-                            className="text-rose-600 hover:bg-rose-50"
-                            onClick={() => handleDeleteAccount(acc)}
-                            title="Xóa tài khoản"
+                            title={
+                              isSuperAdmin
+                                ? 'Không được phép khóa hoặc mở khóa tài khoản Admin Server'
+                                : isLocked
+                                  ? 'Mở khóa'
+                                  : 'Khóa tài khoản'
+                            }
                           />
                         </div>
                       </td>
@@ -580,59 +537,6 @@ export default function AccountManagement() {
             value={formData.status}
             onChange={(e) => setFormData({ ...formData, status: e.target.value })}
           />
-        </div>
-      </Modal>
-
-      {/* Modal Phân quyền nhanh */}
-      <Modal
-        isOpen={!!permModalAccount}
-        onClose={() => setPermModalAccount(null)}
-        title={`Phân quyền: ${permModalAccount?.fullName || ''}`}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setPermModalAccount(null)} disabled={savingPerm}>
-              Hủy
-            </Button>
-            <Button variant="primary" onClick={handleSavePermission} disabled={savingPerm}>
-              {savingPerm ? 'Đang lưu...' : 'Lưu phân quyền'}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-slate-500">
-            Chọn vai trò cho tài khoản <strong>{permModalAccount?.email}</strong>:
-          </p>
-          <div className="space-y-2.5">
-            {PERMISSION_ROLES.map((roleInfo) => {
-              const checked = selectedDepartment === roleInfo.value;
-              return (
-                <label
-                  key={roleInfo.value}
-                  onClick={() => setSelectedDepartment(roleInfo.value)}
-                  className={`block p-3.5 rounded-xl border cursor-pointer transition-all ${
-                    checked
-                      ? 'border-rose-600 bg-rose-50/60 dark:bg-rose-950/30'
-                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
-                      {roleInfo.label}
-                    </span>
-                    <input
-                      type="radio"
-                      name="departmentRole"
-                      checked={checked}
-                      onChange={() => setSelectedDepartment(roleInfo.value)}
-                      className="text-rose-600"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">{roleInfo.desc}</p>
-                </label>
-              );
-            })}
-          </div>
         </div>
       </Modal>
     </div>

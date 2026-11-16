@@ -39,7 +39,7 @@ export class ReportsService {
     const range = { gte: start, lte: end };
     const allWhere: Prisma.OrderWhereInput = {
       OR: [
-        { status: OrderStatus.completed, createdAt: range },
+        { createdAt: range },
         { payment: { is: { paidAt: range } } },
         { payment: { is: { refundedAt: range } } },
       ],

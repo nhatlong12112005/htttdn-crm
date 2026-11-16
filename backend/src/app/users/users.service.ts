@@ -382,9 +382,9 @@ export class UsersService {
     nextStatus: string | undefined,
     currentUser?: UserInfo,
   ) {
-    if (nextStatus !== 'inactive') return;
+    if (!nextStatus) return;
 
-    if (currentUser?.userID && id === currentUser.userID) {
+    if (currentUser?.userID && id === currentUser.userID && nextStatus === 'inactive') {
       throw new BadRequestException(
         'Không thể tự khóa tài khoản của chính mình',
       );
@@ -395,17 +395,9 @@ export class UsersService {
         where: { id },
         select: { roleCode: true, department: true },
       });
-      if (!target || resolveAdminRole(target) !== 'SUPER_ADMIN') return;
-      const allActiveAdmins = await this.prisma.extended.admin.findMany({
-        where: { status: 'active', deletedAt: null },
-        select: { id: true, roleCode: true, department: true },
-      });
-      const remainingActiveAdmins = allActiveAdmins.filter(
-        (a) => a.id !== id && resolveAdminRole(a) === 'SUPER_ADMIN',
-      ).length;
-      if (remainingActiveAdmins === 0) {
+      if (target && resolveAdminRole(target) === 'SUPER_ADMIN') {
         throw new BadRequestException(
-          'Không thể khóa tài khoản quản trị viên đang hoạt động cuối cùng',
+          'Không được phép khóa hoặc mở khóa tài khoản Admin Server',
         );
       }
     }

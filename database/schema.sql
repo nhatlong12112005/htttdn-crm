@@ -1,4 +1,4 @@
-﻿-- CreateSchema
+-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
@@ -41,7 +41,7 @@ CREATE TYPE "DiscountType" AS ENUM ('percentage', 'fixed_amount');
 CREATE TYPE "ProductStatus" AS ENUM ('draft', 'active', 'inactive');
 
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('pending', 'confirmed', 'processing', 'shipping', 'completed', 'cancelled');
+CREATE TYPE "OrderStatus" AS ENUM ('pending', 'confirmed', 'processing', 'shipping', 'completed', 'cancelled', 'returned');
 
 -- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('cod', 'vnpay', 'momo', 'zalopay', 'bank_transfer', 'credit_card', 'pay_later');
@@ -247,6 +247,7 @@ CREATE TABLE "Category" (
     "id" UUID NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "slug" VARCHAR(255) NOT NULL,
+    "description" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),

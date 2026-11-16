@@ -19,6 +19,7 @@ export default function OrderManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [countsByStatus, setCountsByStatus] = useState({});
   
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -41,6 +42,9 @@ export default function OrderManagement() {
       setOrders(data.list || []);
       setTotalPages(data.totalPages || 1);
       setTotalItems(data.totalItems || 0);
+      if (data.countsByStatus) {
+        setCountsByStatus(data.countsByStatus);
+      }
     } catch (err) {
       console.error('Error fetching orders:', err);
     } finally {
@@ -64,7 +68,7 @@ export default function OrderManagement() {
       confirmed: 'info',
       processing: 'info',
       shipping: 'info',
-      returned: 'warning',
+      returned: 'error',
       cancelled: 'error',
     };
     return styles[status] || 'default';
@@ -98,6 +102,35 @@ export default function OrderManagement() {
     }
   };
 
+  const handleApproveReturn = async (orderId, note) => {
+    if (!window.confirm('Bạn có chắc chắn muốn DUYỆT yêu cầu trả hàng & hoàn tiền cho đơn này? Hệ thống sẽ hoàn kho và chuyển trạng thái thanh toán sang Đã hoàn tiền.')) {
+      return;
+    }
+    try {
+      await ordersApi.approveReturn(orderId, note || 'Quản lý CRM đã duyệt');
+      await fetchOrders();
+      setIsDetailModalOpen(false);
+      setOrderToView(null);
+      alert('Đã duyệt yêu cầu trả hàng & hoàn tiền thành công!');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Duyệt trả hàng thất bại');
+    }
+  };
+
+  const handleRejectReturn = async (orderId) => {
+    const reason = window.prompt('Nhập lý do từ chối yêu cầu trả hàng:', 'Không đáp ứng điều kiện đổi trả');
+    if (reason === null) return;
+    try {
+      await ordersApi.rejectReturn(orderId, reason.trim() || undefined);
+      await fetchOrders();
+      setIsDetailModalOpen(false);
+      setOrderToView(null);
+      alert('Đã từ chối yêu cầu trả hàng thành công!');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Từ chối trả hàng thất bại');
+    }
+  };
+
   return (
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -108,6 +141,50 @@ export default function OrderManagement() {
       </div>
 
       <div className="bg-white dark:bg-slate-900 transition-colors rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        {/* Quick Status Tabs with Badges */}
+        <div className="px-4 pt-3 pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          {[
+            { id: 'all', label: 'Tất cả', count: countsByStatus.all },
+            { id: 'pending', label: 'Chờ xác nhận', count: countsByStatus.pending, badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
+            { id: 'confirmed', label: 'Đã xác nhận', count: countsByStatus.confirmed, badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' },
+            { id: 'processing', label: 'Đang đóng gói', count: countsByStatus.processing, badgeColor: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' },
+            { id: 'shipping', label: 'Đang giao', count: countsByStatus.shipping, badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' },
+            { id: 'completed', label: 'Hoàn tất', count: countsByStatus.completed, badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
+            { id: 'returned', label: 'Trả hàng & Hoàn tiền', count: countsByStatus.returned, badgeColor: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
+            { id: 'cancelled', label: 'Đã hủy', count: countsByStatus.cancelled, badgeColor: 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setStatusFilter(tab.id);
+                  setPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : tab.badgeColor || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Filter bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-2 flex-1">
             <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
@@ -174,6 +251,7 @@ export default function OrderManagement() {
                   const displayOrderCode = order.orderCode ? `#${order.orderCode}` : `#${order.id.substring(0, 8)}...`;
                   const paymentMethod = (order.payment?.method || 'cod').toUpperCase();
                   const paymentStatus = order.payment?.status || 'pending';
+                  const isReturnRequested = order.status === 'completed' && Boolean(order.notes?.includes('[YÊU CẦU TRẢ HÀNG]'));
 
                   return (
                     <tr key={order.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
@@ -193,9 +271,20 @@ export default function OrderManagement() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={getStatusBadge(order.status)}>
-                          {getStatusLabel(order.status)}
-                        </Badge>
+                        {isReturnRequested ? (
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300">
+                              ⚠️ Chờ duyệt trả hàng
+                            </span>
+                            <span className="text-[11px] text-amber-700 dark:text-amber-300 font-medium line-clamp-1 max-w-[170px]" title={order.notes}>
+                              {order.notes?.match(/\[YÊU CẦU TRẢ HÀNG\]:?\s*([^|]*)/)?.[1]?.trim() || 'Khách yêu cầu hoàn trả'}
+                            </span>
+                          </div>
+                        ) : (
+                          <Badge variant={getStatusBadge(order.status)}>
+                            {getStatusLabel(order.status)}
+                          </Badge>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{formatDate(order.createdAt)}</td>
                       <td className="px-4 py-3 text-right">
@@ -232,6 +321,24 @@ export default function OrderManagement() {
                               <CheckCircle2 className="w-3 h-3" /> Hoàn tất
                             </button>
                           )}
+                          {isReturnRequested && (
+                            <>
+                              <button
+                                onClick={() => handleApproveReturn(order.id)}
+                                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-xs cursor-pointer"
+                                title="Duyệt trả hàng & Hoàn tiền ngay"
+                              >
+                                Duyệt trả
+                              </button>
+                              <button
+                                onClick={() => handleRejectReturn(order.id)}
+                                className="px-2 py-1 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 transition cursor-pointer"
+                                title="Từ chối yêu cầu trả hàng"
+                              >
+                                Từ chối
+                              </button>
+                            </>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -267,7 +374,7 @@ export default function OrderManagement() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                icon={ChevronRight}
+                icon={ChevronRight} 
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               />
@@ -282,6 +389,8 @@ export default function OrderManagement() {
           onClose={() => setIsDetailModalOpen(false)}
           order={orderToView}
           onStatusChange={handleStatusChange}
+          onApproveReturn={handleApproveReturn}
+          onRejectReturn={handleRejectReturn}
         />
       )}
     </div>

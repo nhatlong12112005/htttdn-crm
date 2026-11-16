@@ -3,7 +3,8 @@ import {
   Search,
   Eye,
   Edit,
-  Trash2,
+  Lock,
+  Unlock,
   Plus,
   Image,
   Loader2,
@@ -145,13 +146,15 @@ export default function ProductManagement() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteClick = async (productId) => {
-    if (window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) {
+  const handleToggleStatus = async (product) => {
+    const nextStatus = product.status === 'active' ? 'inactive' : 'active';
+    const actionLabel = nextStatus === 'inactive' ? 'tạm ẩn' : 'kích hoạt lại';
+    if (window.confirm(`Bạn có chắc chắn muốn ${actionLabel} sản phẩm "${product.name}"?`)) {
       try {
-        await productsApi.deleteProduct(productId);
+        await productsApi.updateProduct(product.id, { status: nextStatus });
         fetchProducts();
       } catch (err) {
-        alert(err.response?.data?.message || 'Xóa sản phẩm thất bại');
+        alert(err.response?.data?.message || `Không thể ${actionLabel} sản phẩm`);
       }
     }
   };
@@ -371,10 +374,10 @@ export default function ProductManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            icon={Trash2}
-                            className="text-slate-400 hover:text-red-600"
-                            onClick={() => handleDeleteClick(product.id)}
-                            title="Xóa sản phẩm"
+                            icon={product.status === 'active' ? Lock : Unlock}
+                            className={product.status === 'active' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}
+                            onClick={() => handleToggleStatus(product)}
+                            title={product.status === 'active' ? 'Tạm ẩn sản phẩm' : 'Kích hoạt sản phẩm'}
                           />
                         </div>
                       </td>

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  NotificationType,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
@@ -584,13 +585,15 @@ export class OrdersService {
         (current.status === OrderStatus.pending ||
           current.status === OrderStatus.confirmed ||
           current.status === OrderStatus.processing);
-      const canReturn =
-        dto.status === OrderStatus.returned &&
-        current.status === OrderStatus.completed;
 
-      if (!canCancel && !canReturn) {
+      if (!canCancel) {
+        if (dto.status === OrderStatus.returned) {
+          throw new ForbiddenException(
+            'Khách hàng không thể tự hoàn tất trả hàng. Vui lòng gửi yêu cầu để Quản lý CRM phê duyệt.',
+          );
+        }
         throw new ForbiddenException(
-          'Khách hàng chỉ được hủy đơn khi chưa giao vận chuyển hoặc trả hàng hoàn tiền khi đơn đã hoàn tất',
+          'Khách hàng chỉ được hủy đơn khi chưa giao vận chuyển',
         );
       }
     }
@@ -751,6 +754,247 @@ export class OrdersService {
     }
     this.surveysService.emitNotifications(result.surveyNotifications);
     return result.updated;
+  }
+
+  async requestReturn(id: string, reason?: string, user?: UserInfo) {
+    if (!user) throw new ForbiddenException('Bạn cần đăng nhập để thực hiện thao tác này');
+    const current = await this.getById(id, user);
+
+    if (user.role === 'client' && current.clientId !== user.userID) {
+      throw new ForbiddenException('Bạn không có quyền yêu cầu trả hàng cho đơn này');
+    }
+
+    if (current.status !== OrderStatus.completed) {
+      throw new BadRequestException('Chỉ có thể yêu cầu trả hàng cho đơn hàng đã hoàn tất giao hàng.');
+    }
+
+    const completedHistory = [...(current.statusHistory || [])]
+      .reverse()
+      .find((h) => h.toStatus === OrderStatus.completed);
+    const completedAt = completedHistory?.createdAt
+      ? new Date(completedHistory.createdAt)
+      : new Date(current.updatedAt || current.createdAt);
+    if (Date.now() - completedAt.getTime() > RETURN_WINDOW_MS) {
+      throw new BadRequestException(
+        `Đơn hàng đã quá thời hạn ${RETURN_WINDOW_DAYS} ngày kể từ lúc giao thành công nên không thể gửi yêu cầu trả hàng`,
+      );
+    }
+
+    if (current.notes?.includes('[YÊU CẦU TRẢ HÀNG]')) {
+      throw new BadRequestException('Đơn hàng này đã có yêu cầu trả hàng đang chờ Quản lý CRM xử lý.');
+    }
+
+    const cleanReason = (reason || '').trim() || 'Khách hàng yêu cầu trả hàng và hoàn tiền';
+    const updatedNotes = current.notes
+      ? `[YÊU CẦU TRẢ HÀNG]: ${cleanReason} | ${current.notes.replace(/\[TỪ CHỐI TRẢ HÀNG[^\]]*\]:?[^|]*/g, '').trim()}`
+      : `[YÊU CẦU TRẢ HÀNG]: ${cleanReason}`;
+
+    const result = await this.prisma.extendedTransaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: {
+          notes: updatedNotes,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          clientId: user.userID,
+          fromStatus: OrderStatus.completed,
+          toStatus: OrderStatus.completed,
+          note: `[YÊU CẦU TRẢ HÀNG]: ${cleanReason}`,
+        },
+      });
+
+      const managers = await tx.admin.findMany({
+        where: { status: 'active', deletedAt: null },
+        select: { id: true },
+      });
+
+      if (managers.length) {
+        await tx.notification.createMany({
+          data: managers.map((m) => ({
+            adminId: m.id,
+            type: NotificationType.order_update,
+            title: `Yêu cầu trả hàng mới: Đơn #${current.orderCode}`,
+            content: `Khách hàng ${current.client?.fullName || ''} yêu cầu trả hàng & hoàn tiền đơn #${current.orderCode}. Lý do: ${cleanReason}`,
+            data: {
+              kind: 'order_return_request',
+              orderId: current.id,
+              orderCode: current.orderCode,
+            },
+          })),
+        });
+      }
+
+      return tx.order.findUniqueOrThrow({
+        where: { id },
+        include: orderInclude,
+      });
+    });
+
+    this.emitOrder(result, 'order:updated');
+    this.realtime?.emitToAdmins('notification:created', {
+      kind: 'order_return_request',
+      orderId: result.id,
+      orderCode: result.orderCode,
+    });
+
+    return result;
+  }
+
+  async approveReturn(id: string, note?: string, user?: UserInfo) {
+    if (!user || user.role !== 'admin') {
+      throw new ForbiddenException('Chỉ Quản lý CRM mới có quyền duyệt yêu cầu trả hàng');
+    }
+    const current = await this.getById(id, user);
+
+    if (current.status !== OrderStatus.completed) {
+      throw new BadRequestException('Chỉ có thể duyệt trả hàng cho đơn hàng đã giao thành công.');
+    }
+
+    const cleanNote = (note || '').trim() || 'Quản lý CRM đã duyệt yêu cầu trả hàng và hoàn tiền';
+    const updatedNotes = current.notes
+      ? current.notes.replace(/\[YÊU CẦU TRẢ HÀNG[^\]]*\]/g, `[ĐÃ DUYỆT TRẢ HÀNG: ${cleanNote}]`)
+      : `[ĐÃ DUYỆT TRẢ HÀNG: ${cleanNote}]`;
+
+    const result = await this.prisma.extendedTransaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: {
+          status: OrderStatus.returned,
+          notes: updatedNotes,
+        },
+      });
+
+      for (const detail of current.details) {
+        await tx.productVariant.update({
+          where: { id: detail.productVariantId },
+          data: { stock: { increment: detail.quantity } },
+        });
+      }
+
+      const now = new Date();
+      await tx.payment.update({
+        where: { orderId: id },
+        data: {
+          status: PaymentStatus.refunded,
+          paidAt: current.payment?.paidAt ?? now,
+          refundedAt: now,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          adminId: user.userID,
+          fromStatus: OrderStatus.completed,
+          toStatus: OrderStatus.returned,
+          note: `[ĐÃ DUYỆT TRẢ HÀNG]: ${cleanNote}`,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          clientId: current.clientId,
+          type: NotificationType.order_update,
+          title: `Đã duyệt yêu cầu trả hàng: Đơn #${current.orderCode}`,
+          content: `Yêu cầu trả hàng cho đơn #${current.orderCode} đã được Quản lý CRM phê duyệt. Số tiền thanh toán đã được hoàn lại.`,
+          data: {
+            kind: 'order_return_approved',
+            orderId: current.id,
+            orderCode: current.orderCode,
+          },
+        },
+      });
+
+      return tx.order.findUniqueOrThrow({
+        where: { id },
+        include: orderInclude,
+      });
+    });
+
+    this.emitOrder(result, 'order:updated');
+    if (result.payment) {
+      const paymentPayload = {
+        paymentId: result.payment.id,
+        orderId: result.id,
+        status: result.payment.status,
+      };
+      this.realtime.emitToUser(result.clientId, 'payment:updated', paymentPayload);
+      this.realtime.emitToAdmins('payment:updated', paymentPayload);
+    }
+    this.realtime?.emitToUser(result.clientId, 'notification:created', {
+      kind: 'order_return_approved',
+      orderId: result.id,
+      orderCode: result.orderCode,
+    });
+
+    return result;
+  }
+
+  async rejectReturn(id: string, reason?: string, user?: UserInfo) {
+    if (!user || user.role !== 'admin') {
+      throw new ForbiddenException('Chỉ Quản lý CRM mới có quyền từ chối yêu cầu trả hàng');
+    }
+    const current = await this.getById(id, user);
+
+    if (current.status !== OrderStatus.completed) {
+      throw new BadRequestException('Chỉ có thể xử lý yêu cầu cho đơn hàng đã hoàn tất.');
+    }
+
+    const cleanReason = (reason || '').trim() || 'Không đáp ứng điều kiện trả hàng';
+    const updatedNotes = current.notes
+      ? current.notes.replace(/\[YÊU CẦU TRẢ HÀNG[^\]]*\]/g, `[TỪ CHỐI TRẢ HÀNG: ${cleanReason}]`)
+      : `[TỪ CHỐI TRẢ HÀNG: ${cleanReason}]`;
+
+    const result = await this.prisma.extendedTransaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: {
+          notes: updatedNotes,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          adminId: user.userID,
+          fromStatus: OrderStatus.completed,
+          toStatus: OrderStatus.completed,
+          note: `[TỪ CHỐI TRẢ HÀNG]: ${cleanReason}`,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          clientId: current.clientId,
+          type: NotificationType.order_update,
+          title: `Yêu cầu trả hàng bị từ chối: Đơn #${current.orderCode}`,
+          content: `Yêu cầu hoàn trả cho đơn #${current.orderCode} không được chấp thuận. Lý do: ${cleanReason}`,
+          data: {
+            kind: 'order_return_rejected',
+            orderId: current.id,
+            orderCode: current.orderCode,
+          },
+        },
+      });
+
+      return tx.order.findUniqueOrThrow({
+        where: { id },
+        include: orderInclude,
+      });
+    });
+
+    this.emitOrder(result, 'order:updated');
+    this.realtime?.emitToUser(result.clientId, 'notification:created', {
+      kind: 'order_return_rejected',
+      orderId: result.id,
+      orderCode: result.orderCode,
+    });
+
+    return result;
   }
 
   private assertCanView(order: { clientId: string }, user: UserInfo) {
