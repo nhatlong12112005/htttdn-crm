@@ -15,11 +15,6 @@
 
 ---
 
-# HTTT Quản lý khách hàng (CRM) – Đồ án HTTTDN
-
-Đồ án học phần **Hệ thống thông tin doanh nghiệp (841065)** – Trường ĐH Sài Gòn.
-Tách ra từ repo [`htttdn`](https://github.com/MAnhhaoo/htttdn), chỉ giữ **Admin** và **Client**.
-
 ## Cấu trúc
 
 ```
