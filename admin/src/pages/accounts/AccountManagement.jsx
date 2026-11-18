@@ -10,6 +10,7 @@ import {
   Users,
   Edit,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { usersApi } from '../../api';
 import { formatDate } from '../../utils/formatHelpers';
@@ -214,6 +215,30 @@ export default function AccountManagement() {
       fetchAllAccounts();
     } catch (err) {
       alert(err.response?.data?.message || 'Không thể cập nhật trạng thái tài khoản');
+    }
+  };
+
+  const handleSoftDelete = async (acc) => {
+    const isSuperAdmin =
+      acc.role === 'admin' &&
+      (acc.adminRole === 'SUPER_ADMIN' || acc.department === 'SUPER_ADMIN');
+    if (isSuperAdmin) {
+      alert('Không được phép xóa tài khoản Admin Server');
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Bạn có chắc chắn muốn xóa tài khoản "${acc.fullName}" (${acc.email})?\n\n(Tài khoản sẽ bị vô hiệu hóa, không xóa vĩnh viễn khỏi hệ thống)`
+      )
+    ) {
+      return;
+    }
+    try {
+      await usersApi.deleteUser(acc.id);
+      fetchAllAccounts();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Không thể xóa tài khoản');
     }
   };
 
@@ -452,6 +477,16 @@ export default function AccountManagement() {
                                   : 'Khóa tài khoản'
                             }
                           />
+                          {!isSuperAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={Trash2}
+                              className="text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                              onClick={() => handleSoftDelete(acc)}
+                              title="Xóa tài khoản (xóa mềm)"
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>

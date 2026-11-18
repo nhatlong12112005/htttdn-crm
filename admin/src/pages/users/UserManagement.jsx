@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Plus,
   Users,
+  Trash2,
 } from 'lucide-react';
 import { usersApi } from '../../api';
 import { formatDate } from '../../utils/formatHelpers';
@@ -93,6 +94,21 @@ export default function UserManagement() {
         fetchUsers();
       } catch (err) {
         alert(err.response?.data?.message || `Không thể ${actionLabel} tài khoản khách hàng`);
+      }
+    }
+  };
+
+  const handleSoftDelete = async (user) => {
+    if (
+      window.confirm(
+        `Bạn có chắc chắn muốn xóa tài khoản khách hàng "${user.fullName || user.email}"?\n\n(Tài khoản sẽ bị vô hiệu hóa, không xóa vĩnh viễn khỏi hệ thống)`
+      )
+    ) {
+      try {
+        await usersApi.deleteUser(user.id);
+        fetchUsers();
+      } catch (err) {
+        alert(err.response?.data?.message || 'Không thể xóa tài khoản khách hàng');
       }
     }
   };
@@ -273,6 +289,14 @@ export default function UserManagement() {
                             }
                             onClick={() => handleToggleStatus(user)}
                             title={isLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản khách hàng'}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon={Trash2}
+                            className="text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                            onClick={() => handleSoftDelete(user)}
+                            title="Xóa tài khoản (xóa mềm)"
                           />
                         </div>
                       </td>

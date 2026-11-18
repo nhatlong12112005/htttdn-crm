@@ -72,6 +72,7 @@ export default function SurveyManagement() {
   const [draftRecipientIds, setDraftRecipientIds] = useState([]);
   const [recipientLoading, setRecipientLoading] = useState(false);
   const [recipientSubmitting, setRecipientSubmitting] = useState(false);
+  const [isCustomerListOpen, setIsCustomerListOpen] = useState(false);
 
   const loadActiveCustomers = async () => {
     const list = [];
@@ -627,9 +628,6 @@ export default function SurveyManagement() {
                                 Mở lại
                               </button>
                             )}
-                            {survey.status === 'closed' && survey.endDate && new Date(survey.endDate) < new Date() && (
-                              <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">Gia hạn để mở lại</span>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -851,7 +849,10 @@ export default function SurveyManagement() {
                   value={audienceType}
                   onChange={(e) => {
                     setAudienceType(e.target.value);
-                    if (e.target.value === 'selected_users') setTriggerType('manual');
+                    if (e.target.value === 'selected_users') {
+                      setTriggerType('manual');
+                      setIsCustomerListOpen(false);
+                    }
                   }}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100"
                 >
@@ -861,48 +862,68 @@ export default function SurveyManagement() {
               </div>
 
               {audienceType === 'selected_users' && (
-                <div className="space-y-2 border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50/70 dark:bg-slate-800/50">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <div className="space-y-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/70 dark:bg-slate-800/50">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerListOpen((v) => !v)}
+                    className="w-full flex items-center justify-between p-3 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+                  >
                     <span>Chọn tài khoản ({selectedCustomerIds.length} đã chọn)</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedCustomerIds(
-                          selectedCustomerIds.length === customers.length
-                            ? []
-                            : customers.map((c) => c.id)
-                        )
-                      }
-                      className="text-blue-600 hover:underline"
-                    >
-                      {selectedCustomerIds.length === customers.length
-                        ? 'Bỏ chọn hết'
-                        : 'Chọn tất cả'}
-                    </button>
-                  </div>
-                  <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
-                    {customers.map((cus) => (
-                      <label
-                        key={cus.id}
-                        className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-xs"
+                    <div className="flex items-center gap-2">
+                      {isCustomerListOpen && (
+                        <span
+                          role="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCustomerIds(
+                              selectedCustomerIds.length === customers.length
+                                ? []
+                                : customers.map((c) => c.id)
+                            );
+                          }}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {selectedCustomerIds.length === customers.length
+                            ? 'Bỏ chọn hết'
+                            : 'Chọn tất cả'}
+                        </span>
+                      )}
+                      <svg
+                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isCustomerListOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
                       >
-                        <input
-                          type="checkbox"
-                          checked={selectedCustomerIds.includes(cus.id)}
-                          onChange={() => toggleSelectCustomer(cus.id)}
-                          className="rounded text-blue-600"
-                        />
-                        <div className="truncate">
-                          <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
-                            {cus.fullName}
-                          </span>
-                          <span className="text-[11px] text-slate-400 block truncate">
-                            {cus.email}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+                  {isCustomerListOpen && (
+                    <div className="max-h-44 overflow-y-auto space-y-1.5 px-3 pb-3 pr-1">
+                      {customers.map((cus) => (
+                        <label
+                          key={cus.id}
+                          className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCustomerIds.includes(cus.id)}
+                            onChange={() => toggleSelectCustomer(cus.id)}
+                            className="rounded text-blue-600"
+                          />
+                          <div className="truncate">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                              {cus.fullName}
+                            </span>
+                            <span className="text-[11px] text-slate-400 block truncate">
+                              {cus.email}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -916,8 +937,8 @@ export default function SurveyManagement() {
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100"
                 >
                   <option value="manual">Gửi ngay vào tài khoản khách hàng khi kích hoạt</option>
-                  {audienceType !== 'selected_users' && <option value="after_order_completed">Tự động gửi khi đơn hàng hoàn thành</option>}
-                  {audienceType !== 'selected_users' && <option value="after_checkout">Tự động gửi sau khi khách đặt hàng</option>}
+                  <option value="after_order_completed">Tự động gửi khi đơn hàng hoàn thành</option>
+                  <option value="after_checkout">Tự động gửi sau khi khách đặt hàng</option>
                 </select>
               </div>
 
