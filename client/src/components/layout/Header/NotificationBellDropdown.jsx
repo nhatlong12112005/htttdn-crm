@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, Clock, Store, ShieldCheck, ClipboardList, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { Bell, Check, Clock, Store, ShieldCheck, ClipboardList, CheckCircle2, AlertCircle, ExternalLink, MessageSquare } from 'lucide-react';
 import { notificationService } from '../../../services/notificationService';
 import SurveyModal from '../../survey/SurveyModal';
 
@@ -114,6 +114,32 @@ export default function NotificationBellDropdown() {
       setActiveSurveyResponseId(responseId);
       setIsModalOpen(true);
       setIsOpen(false);
+      return;
+    }
+
+    // 3. Review reply notification
+    if (notif.data?.kind === 'review_reply') {
+      setIsOpen(false);
+      const targetId = notif.data?.productId || notif.data?.slug;
+      if (targetId) {
+        navigate(`/products/${targetId}#product-reviews-section`);
+        setTimeout(() => {
+          const el = document.getElementById('product-reviews-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 200);
+      } else {
+        navigate('/account/orders');
+      }
+      return;
+    }
+
+    // 4. Order notification
+    if (notif.data?.kind?.startsWith('order_')) {
+      setIsOpen(false);
+      navigate('/account/orders');
+      return;
     }
   };
 
@@ -258,6 +284,8 @@ export default function NotificationBellDropdown() {
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         {isSurvey ? (
                           <ClipboardList className="w-5 h-5 text-emerald-600" />
+                        ) : notif.data?.kind === 'review_reply' ? (
+                          <MessageSquare className="w-5 h-5 text-indigo-600" />
                         ) : (
                           <Bell className="w-5 h-5 text-blue-600" />
                         )}
@@ -267,7 +295,11 @@ export default function NotificationBellDropdown() {
                       <div className="flex-1 min-w-0">
                         {/* Sender & Badge */}
                         <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                          {isMiva ? (
+                          {notif.data?.kind === 'review_reply' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                              <MessageSquare className="w-3 h-3" /> Phản hồi CRM
+                            </span>
+                          ) : isMiva ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">
                               <ShieldCheck className="w-3 h-3" /> {senderName}
                             </span>

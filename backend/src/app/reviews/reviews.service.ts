@@ -166,12 +166,22 @@ export class ReviewsService {
   async replyReview(id: string, adminReply: string) {
     const review = await this.prisma.extended.review.findFirst({
       where: { id, deletedAt: null },
+      include: {
+        product: { select: { id: true, name: true, slug: true } },
+        orderDetail: {
+          select: {
+            id: true,
+            order: { select: { id: true, orderCode: true } },
+          },
+        },
+      },
     });
     if (!review) throw new NotFoundException('Phản hồi không tồn tại');
-    return this.prisma.extended.review.update({
+    const trimmedReply = adminReply.trim();
+    const updated = await this.prisma.extended.review.update({
       where: { id },
       data: {
-        adminReply: adminReply.trim(),
+        adminReply: trimmedReply,
         repliedAt: new Date(),
       },
       include: {
@@ -179,6 +189,39 @@ export class ReviewsService {
         product: { select: { id: true, name: true, slug: true } },
       },
     });
+
+    try {
+      const productName = review.product?.name || 'sản phẩm';
+      const orderCode = review.orderDetail?.order?.orderCode;
+      const orderText = orderCode ? ` cho đơn hàng #${orderCode}` : '';
+
+      await this.prisma.extended.notification.create({
+        data: {
+          clientId: review.clientId,
+          type: NotificationType.system,
+          title: 'Quản lý CRM đã phản hồi về đánh giá của bạn',
+          content: `Quản lý CRM đã trả lời đánh giá của bạn cho ${productName}${orderText}: "${trimmedReply}"`,
+          data: {
+            kind: 'review_reply',
+            reviewId: updated.id,
+            productId: review.productId,
+            slug: review.product?.slug,
+            orderId: review.orderDetail?.order?.id,
+            orderCode: orderCode || null,
+          },
+        },
+      });
+
+      this.realtime?.emitToUser(review.clientId, 'notification:created', {
+        kind: 'review_reply',
+        reviewId: updated.id,
+        orderCode: orderCode || null,
+      });
+    } catch (error) {
+      this.logger.warn(`Không thể tạo thông báo trả lời đánh giá cho khách: ${error}`);
+    }
+
+    return updated;
   }
 
   async update(clientId: string, id: string, dto: UpdateReviewDto) {

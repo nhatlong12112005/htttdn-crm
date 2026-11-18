@@ -53,6 +53,21 @@ export default function ProductDetail() {
     loadProductReviews();
   }, [product?.id]);
 
+  // Auto-scroll to reviews section if navigated via hash link (e.g. from CRM reply notification)
+  useEffect(() => {
+    if (!isLoading && product) {
+      if (window.location.hash === '#product-reviews-section') {
+        const timer = setTimeout(() => {
+          const el = document.getElementById('product-reviews-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 250);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isLoading, product]);
+
   const handleSubmitProductFeedback = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {

@@ -233,14 +233,14 @@ export default function OrderManagement() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Mã đơn</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">Mã đơn</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Khách hàng</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Số SP</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tổng tiền</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Thanh toán</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Trạng thái</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ngày tạo</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">Thao tác</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">Số SP</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">Tổng tiền</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">Thanh toán</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">Trạng thái</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">Ngày tạo</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,18 +262,18 @@ export default function OrderManagement() {
                         <div className="font-medium text-slate-800 dark:text-slate-100">{userName}</div>
                         {userEmail && <div className="text-xs text-slate-400 dark:text-slate-500">{userEmail}</div>}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">{itemsCount} SP</td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100">{formatCurrency(order.totalAmount)}</td>
-                      <td className="px-4 py-3 text-xs">
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">{itemsCount} SP</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">{formatCurrency(order.totalAmount)}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
                         <span className="font-semibold text-slate-700 dark:text-slate-300">{paymentMethod}</span>
                         <span className="ml-1.5 text-slate-400">
                           ({paymentStatus === 'paid' ? 'Đã TT' : paymentStatus === 'refunded' ? 'Đã hoàn tiền' : paymentStatus === 'cancelled' ? 'Đã hủy' : 'Chờ TT'})
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {isReturnRequested ? (
                           <div className="flex flex-col gap-1 items-start">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 whitespace-nowrap">
                               ⚠️ Chờ duyệt trả hàng
                             </span>
                             <span className="text-[11px] text-amber-700 dark:text-amber-300 font-medium line-clamp-1 max-w-[170px]" title={order.notes}>
@@ -286,8 +286,8 @@ export default function OrderManagement() {
                           </Badge>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{formatDate(order.createdAt)}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(order.createdAt)}</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {order.status === 'pending' && (
                             <button

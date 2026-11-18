@@ -48,6 +48,10 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('cod');
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
     const fetchAddresses = async () => {
       try {
         const res = await addressService.getAddresses();
