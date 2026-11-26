@@ -16,5 +16,6 @@
 | 13 | 3123411084 | Mạc Anh Hào | 0375915375 | anhhao.dnc@gmail.com |
 | 24 | 3123411162 | Trần Minh Khoa | 0327123928 | tranminhkhoa05328@gmail.com |
 | 27 | 3123411182 | Trương Nhật Long | 0375352180 | truongnhatlong506@gmail.com |
+| 14 | 3123411085 | Nguyễn Tuấn Hào | 0839260405 | nguyentuanhao260405@gmail.com |
 
 
